@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Markpad Native — The VLC of Text Files</title>
+  <!-- Modern Google Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --bg: #0a0a0c;
+      --card-bg: rgba(20, 20, 25, 0.6);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --primary: #ff7b00; /* Vibrant Orange */
+      --secondary: #00d2ff; /* Tech Blue */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+
+    /* Ambient Glow Background */
+    .glow-bg {
+      position: absolute;
+      top: -300px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1000px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(255, 123, 0, 0.15) 0%, rgba(0, 210, 255, 0.1) 50%, rgba(0,0,0,0) 100%);
+      filter: blur(100px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header Nav */
+    header {
+      padding: 30px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 24px;
+      letter-spacing: -0.5px;
+    }
+
+    .brand img {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 15px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 100px 0 80px 0;
+      text-align: center;
+      position: relative;
+    }
+
+    .tagline {
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--primary);
+      margin-bottom: 20px;
+      display: inline-block;
+    }
+
+    h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 64px;
+      font-weight: 800;
+      line-height: 1.1;
+      letter-spacing: -2px;
+      max-width: 800px;
+      margin: 0 auto 24px auto;
+      background: linear-gradient(135deg, #ffffff 0%, #a5a5a5 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 20px;
+      color: var(--text-muted);
+      max-width: 650px;
+      margin: 0 auto 40px auto;
+    }
+
+    /* Premium Glow Buttons */
+    .btn-group {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 16px 36px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, #e06000 100%);
+      color: white;
+      box-shadow: 0 4px 20px rgba(255, 123, 0, 0.25);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(255, 123, 0, 0.4);
+    }
+
+    .btn-secondary {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .meta-downloads {
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Feature Grid */
+    .features {
+      padding: 80px 0;
+    }
+
+    .section-title {
+      text-align: center;
+      font-family: 'Outfit', sans-serif;
+      font-size: 36px;
+      font-weight: 700;
+      margin-bottom: 50px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+    }
+
+    /* Glassmorphism Cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      padding: 36px;
+      border-radius: 20px;
+      backdrop-filter: blur(20px);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+      pointer-events: none;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 123, 0, 0.2);
+      transform: translateY(-4px);
+    }
+
+    .card-icon {
+      font-size: 32px;
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-family: 'Outfit', sans-serif;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 12px;
+    }
+
+    .card-desc {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* Preview Section */
+    .preview {
+      padding: 80px 0;
+      text-align: center;
+    }
+
+    .preview-box {
+      background: #111115;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+      max-width: 900px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .preview-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      padding-bottom: 12px;
+    }
+
+    .window-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #333;
+    }
+    .dot.red { background: #ff5f56; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #27c93f; }
+
+    .preview-title {
+      font-size: 13px;
+      color: var(--text-muted);
+      font-family: monospace;
+    }
+
+    .preview-content {
+      text-align: left;
+      font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 14px;
+      background: rgba(0,0,0,0.3);
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      max-height: 350px;
+    }
+
+    /* Mock priority logs */
+    .log-line {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+    .badge {
+      font-weight: 700;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .badge.error { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+    .badge.warn { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+    .badge.info { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+
+    /* Footer */
+    footer {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    footer p {
+      margin-top: 8px;
+    }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 40px; }
+      .hero-desc { font-size: 16px; }
+      .card { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="glow-bg"></div>
+
+  <div class="container">
+    <header>
+      <div class="brand">
+        <img src="logo.png" alt="Markpad Native Logo">
+        <span>Markpad Native</span>
+      </div>
+      <div class="nav-links">
+        <a href="https://github.com" target="_blank">GitHub</a>
+      </div>
+    </header>
+
+    <!-- HERO SECTION -->
+    <section class="hero">
+      <span class="tagline">Introducing Markpad Native</span>
+      <h1>The VLC of Text Files</h1>
+      <p class="hero-desc">
+        A zero-bloat, native Windows utility designed to open, parse, and edit any text format instantly. Ditch heavy Electron editors for pure Rust performance.
+      </p>
+
+      <div class="btn-group">
+        <a href="../src-tauri/target/release/bundle/nsis/Markpad%20Native_1.0.0_x64-setup.exe" class="btn btn-primary" download>
+          <span>📥 Download Setup (.exe)</span>
+        </a>
+        <a href="../src-tauri/target/release/bundle/msi/Markpad%20Native_1.0.0_x64_en-US.msi" class="btn btn-secondary" download>
+          <span>📦 Download Installer (.msi)</span>
+        </a>
+      </div>
+      
+      <p class="meta-downloads">
+        Lightweight (~5 MB) | Built for Windows 10 & 11 (64-bit)
+      </p>
+    </section>
+
+    <!-- PREVIEW AREA -->
+    <section class="preview">
+      <div class="preview-box">
+        <div class="preview-header">
+          <div class="window-dots">
+            <span class="dot red"></span>
+            <span class="dot yellow"></span>
+            <span class="dot green"></span>
+          </div>
+          <span class="preview-title">server_logs.log — Markpad Native</span>
+          <span style="opacity: 0;">•••</span>
+        </div>
+        
+        <div class="preview-content">
+          <div class="log-line">
+            <span class="badge info">INFO</span>
+            <span>[17:42:01] Bootstrapping native Windows file stream hooks...</span>
+          </div>
+          <div class="log-line">
+            <span class="badge info">INFO</span>
+            <span>[17:42:03] Tauri backend memory-mapped engine active.</span>
+          </div>
+          <div class="log-line">
+            <span class="badge warn">WARN</span>
+            <span>[17:42:15] Custom XML elements encountered inside prompt_eng.md.</span>
+          </div>
+          <div class="log-line">
+            <span class="badge error">ERROR</span>
+            <span>[17:43:08] Fatal stack overflow averted by DOM virtual rendering!</span>
+          </div>
+          <div class="log-line">
+            <span class="badge info">INFO</span>
+            <span>[17:43:10] Rendering complete in 0.04ms. Memory footprint: 4.8MB.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURE CARDS -->
+    <section class="features">
+      <h2 class="section-title">Why Rebuild from Scratch?</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3 class="card-title">Instant Startup</h3>
+          <p class="card-desc">
+            Compiles natively to machine code. Starts up in less than 0.2 seconds—faster than standard Windows Notepad.
+          </p>
+        </div>
+        
+        <div class="card">
+          <div class="card-icon">🧠</div>
+          <h3 class="card-title">VLC Heuristics</h3>
+          <p class="card-desc">
+            No extensions needed. Automatically converts logs into color-coded timelines, CSVs into clean data grids, and Markdown into pristine HTML.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">💻</div>
+          <h3 class="card-title">Deep OS Hooking</h3>
+          <p class="card-desc">
+            Tied directly into the Windows Registry. Double-click any text format on your desktop, and it streams instantly into the editor.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer>
+      <div class="brand" style="justify-content: center; font-size: 20px; margin-bottom: 12px;">
+        <img src="logo.png" alt="Markpad Native Logo">
+        <span>Markpad Native</span>
+      </div>
+      <p>© 2026 Markpad Native Team. Rebuilt natively under Rust & Svelte.</p>
+      <p style="font-size: 12px; margin-top: 4px; opacity: 0.5;">Extremely fast. Extremely lightweight.</p>
+    </footer>
+  </div>
+
+</body>
+</html>
