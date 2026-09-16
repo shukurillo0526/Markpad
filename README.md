@@ -18,7 +18,7 @@
 ## 🚀 Downloads
 
 - **[Get it from Microsoft Store](https://apps.microsoft.com/detail/9NRCZSC4800K)**
-- **[Download directly for Windows (.exe)](https://github.com/shukurillo0526/Markpad/releases/latest/download/Markpad.Native_1.0.1.0_x64-setup.exe)**
+- **[Download directly for Windows (.exe)](https://github.com/shukurillo0526/Markpad/releases/latest)**
 
 ## 💻 Development
 
