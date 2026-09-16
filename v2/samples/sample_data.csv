@@ -1,0 +1,7 @@
+id,product_name,category,price,stock,rating,release_date,description
+1,Quantum Mechanical Keyboard,Peripherals,149.99,42,4.8,2025-11-15,"High-performance mechanical keyboard with RGB backlighting, custom switches, and aluminum chassis."
+2,Ergonomic Vertical Mouse,Peripherals,69.95,115,4.6,2026-01-20,"Reduces wrist strain with 57-degree natural handshake angle and dual-device Bluetooth connectivity."
+3,UltraWide 34-inch Monitor,Displays,699.00,18,4.9,2025-08-10,"3440x1440 curved OLED display, 240Hz refresh rate, 0.03ms response time, HDR1000 certified."
+4,Studio Noise-Canceling Headphones,Audio,299.50,64,4.7,2025-10-04,"Active noise cancellation with 40-hour battery life, spatial audio, and high-res lossless support."
+5,Markpad Pro Developer License,Software,49.00,999,5.0,2026-03-01,"Permanent single-user license for Markpad Native text and code utility by Vodiy."
+6,USB-C Thunderbolt 4 Dock,Accessories,199.99,35,4.5,2025-12-01,"Dual 4K 60Hz display support, 96W Power Delivery, SD card reader, 2.5Gb Ethernet."

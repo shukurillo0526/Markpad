@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markpad Native - The VLC of Text Files</title>
+    <meta name="description" content="Markpad Native is a blazing-fast, lightweight text and code editor built specifically for performance. Instantly open, parse, and perfectly format any text or data file you throw at it—completely offline.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css">
+  </head>
+  <body>
+    <!-- Background Elements -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    
+    <header>
+      <div class="container nav-container">
+        <div class="logo">Markpad<span>Native</span></div>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#download" class="nav-btn">Get the App</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero Section -->
+      <section class="hero container">
+        <div class="hero-content">
+          <div class="badge">🚀 Built with Rust & Tauri v2</div>
+          <h1 class="hero-title">The <span>VLC</span> of Text Files</h1>
+          <p class="hero-subtitle">
+            Instantly open, parse, and perfectly format any text or data file you throw at it—completely offline. Powered by a blazing-fast native backend.
+          </p>
+          
+          <div class="cta-group" id="download">
+            <!-- Microsoft Store Button -->
+            <a href="https://apps.microsoft.com/detail/9NRCZSC4800K" target="_blank" class="btn btn-primary store-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.4 24H0V11.4h11.4V24zM24 24H12.6V11.4H24V24zM11.4 10.6H0V0h11.4v10.6zM24 10.6H12.6V0H24v10.6z"/>
+              </svg>
+              <div class="btn-text">
+                <span>Get it from</span>
+                <strong>Microsoft Store</strong>
+              </div>
+            </a>
+
+            <!-- Direct EXE Button -->
+            <a href="https://github.com/shukurillo0526/Markpad/releases/latest/download/Markpad.Native_1.0.1.0_x64-setup.exe" class="btn btn-secondary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <div class="btn-text">
+                <span>Download directly</span>
+                <strong>Windows (.exe)</strong>
+              </div>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section id="features" class="features container">
+        <h2 class="section-title">Designed for Performance</h2>
+        <div class="features-grid">
+          
+          <!-- Feature 1 -->
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Blazing-Fast Startup</h3>
+            <p>Built completely from the ground up using a highly optimized native Rust backend (Tauri v2). Consumes a fraction of the memory of Electron-based apps.</p>
+          </div>
+
+          <!-- Feature 2 -->
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Smart Data Formatting</h3>
+            <p>Automatically parses and beautifully formats CSV, JSON, Markdown, and system logs into dedicated, interactive viewing modes.</p>
+          </div>
+
+          <!-- Feature 3 -->
+          <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>100% Offline & Secure</h3>
+            <p>Your data never leaves your device. Markpad Native is designed to process enormous files entirely locally with complete privacy.</p>
+          </div>
+
+          <!-- Feature 4 -->
+          <div class="feature-card">
+            <div class="feature-icon">🌙</div>
+            <h3>Immersive Aesthetics</h3>
+            <p>A beautiful, distraction-free modern interface with rich dark mode support and native Windows 11 window controls.</p>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-content">
+        <p>&copy; 2026 Vodiy. All rights reserved.</p>
+        <div class="footer-links">
+          <a href="https://github.com/shukurillo0526/Markpad" target="_blank">GitHub</a>
+          <a href="#">Privacy Policy</a>
+        </div>
+      </div>
+    </footer>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

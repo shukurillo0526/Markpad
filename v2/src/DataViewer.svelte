@@ -1,39 +1,85 @@
 <script lang="ts">
-  export let content = '';
-  export let extension = '';
+  import { t } from './i18n.svelte';
 
-  // Parse JSON
-  let parsedJson: any = null;
-  let jsonError = false;
+  let { content = '', extension = '' } = $props();
 
-  // Parse CSV
-  let parsedCsv: string[][] = [];
+  // --- RFC 4180 CSV Parser (handles quoted fields and CRLF) ---
+  function parseCSV(text: string): string[][] {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let field = '';
+    let inQuotes = false;
 
-  // Parse Logs
-  let parsedLogs: { level: string, text: string }[] = [];
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
 
-  $: {
-    if (extension === 'json') {
-      try {
-        parsedJson = JSON.parse(content);
-        jsonError = false;
-      } catch (e) {
-        jsonError = true;
+      if (inQuotes) {
+        if (ch === '"') {
+          if (text[i + 1] === '"') {
+            field += '"';
+            i++; // skip escaped quote
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += ch;
+        }
+      } else {
+        if (ch === '"') {
+          inQuotes = true;
+        } else if (ch === ',') {
+          currentRow.push(field);
+          field = '';
+        } else if (ch === '\n') {
+          currentRow.push(field);
+          field = '';
+          if (currentRow.length > 0) rows.push(currentRow);
+          currentRow = [];
+        } else if (ch !== '\r') {
+          field += ch;
+        }
       }
-    } else if (extension === 'csv') {
-      parsedCsv = content.split('\n').filter(l => l.trim()).map(line => line.split(','));
-    } else if (extension === 'log') {
-      parsedLogs = content.split('\n').filter(l => l.trim()).map(line => {
-        let level = 'INFO';
-        if (line.match(/error|fail|critical/i)) level = 'ERROR';
-        else if (line.match(/warn/i)) level = 'WARN';
-        else if (line.match(/debug/i)) level = 'DEBUG';
-        return { level, text: line };
-      });
     }
+
+    // Handle last field/row
+    currentRow.push(field);
+    if (currentRow.some((c) => c.length > 0)) {
+      rows.push(currentRow);
+    }
+
+    return rows;
   }
 
-  function formatJson(obj: any): string {
+  // --- Log line parser ---
+  function parseLogLines(text: string): { level: string; text: string }[] {
+    return text
+      .split('\n')
+      .filter((l) => l.trim())
+      .map((line) => {
+        const cleaned = line.replace(/\r$/, '');
+        let level = 'INFO';
+        if (/error|fail|critical|fatal/i.test(cleaned)) level = 'ERROR';
+        else if (/warn/i.test(cleaned)) level = 'WARN';
+        else if (/debug|trace/i.test(cleaned)) level = 'DEBUG';
+        return { level, text: cleaned };
+      });
+  }
+
+  // --- Derived data (Svelte 5 runes) ---
+  let parsedJson = $derived.by(() => {
+    if (extension !== 'json') return { data: null, error: false };
+    try {
+      return { data: JSON.parse(content), error: false };
+    } catch {
+      return { data: null, error: true };
+    }
+  });
+
+  let parsedCsv = $derived(extension === 'csv' ? parseCSV(content) : []);
+
+  let parsedLogs = $derived(extension === 'log' ? parseLogLines(content) : []);
+
+  function formatJson(obj: unknown): string {
     return JSON.stringify(obj, null, 2);
   }
 </script>
@@ -41,8 +87,10 @@
 <div class="data-viewer">
   {#if extension === 'csv'}
     <div class="table-container">
-      <table>
-        {#if parsedCsv.length > 0}
+      {#if parsedCsv.length === 0}
+        <div class="empty-state">No data to display</div>
+      {:else}
+        <table>
           <thead>
             <tr>
               {#each parsedCsv[0] as cell}
@@ -59,32 +107,39 @@
               </tr>
             {/each}
           </tbody>
-        {/if}
-      </table>
+        </table>
+      {/if}
     </div>
   {:else if extension === 'json'}
-    {#if jsonError}
-      <div class="error-banner">Invalid JSON document</div>
+    {#if parsedJson.error}
+      <div class="error-banner">{t('invalid_json')}</div>
       <pre class="raw-data">{content}</pre>
     {:else}
       <div class="json-container">
-        <!-- A very simple pretty-print for now, but wrapped beautifully -->
-        <pre>{formatJson(parsedJson)}</pre>
+        <pre>{formatJson(parsedJson.data)}</pre>
       </div>
     {/if}
   {:else if extension === 'log'}
-    <div class="log-container">
-      {#each parsedLogs as log}
-        <div class="log-line">
-          <span class="badge {log.level.toLowerCase()}">{log.level}</span>
-          <span class="log-text">{log.text}</span>
-        </div>
-      {/each}
-    </div>
+    {#if parsedLogs.length === 0}
+      <div class="empty-state">No log entries</div>
+    {:else}
+      <div class="log-container">
+        {#each parsedLogs as log}
+          <div class="log-line">
+            <span class="badge {log.level.toLowerCase()}">{log.level}</span>
+            <span class="log-text">{log.text}</span>
+          </div>
+        {/each}
+      </div>
+    {/if}
   {:else}
-    <!-- Reader Mode for txt, ini, env -->
+    <!-- Reader Mode for txt, ini, env, etc. -->
     <div class="reader-mode">
-      <pre>{content}</pre>
+      {#if content.trim() === ''}
+        <div class="empty-state">Empty file</div>
+      {:else}
+        <pre>{content}</pre>
+      {/if}
     </div>
   {/if}
 </div>
@@ -96,6 +151,16 @@
     overflow: auto;
     font-size: 14px;
     box-sizing: border-box;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    opacity: 0.4;
+    font-size: 16px;
+    font-style: italic;
   }
 
   /* CSV Table */
@@ -114,6 +179,7 @@
     font-weight: 600;
     padding: 10px;
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    white-space: nowrap;
   }
   td {
     padding: 8px 10px;
@@ -144,12 +210,25 @@
     font-weight: bold;
     min-width: 45px;
     text-align: center;
+    flex-shrink: 0;
   }
-  .badge.error { background-color: rgba(239, 68, 68, 0.2); color: #ef4444; }
-  .badge.warn { background-color: rgba(245, 158, 11, 0.2); color: #f59e0b; }
-  .badge.info { background-color: rgba(59, 130, 246, 0.2); color: #3b82f6; }
-  .badge.debug { background-color: rgba(156, 163, 175, 0.2); color: #9ca3af; }
-  
+  .badge.error {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+  }
+  .badge.warn {
+    background-color: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+  }
+  .badge.info {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #3b82f6;
+  }
+  .badge.debug {
+    background-color: rgba(156, 163, 175, 0.2);
+    color: #9ca3af;
+  }
+
   .log-text {
     word-break: break-all;
     opacity: 0.9;
@@ -163,7 +242,7 @@
     font-family: Consolas, monospace;
     overflow-x: auto;
   }
-  
+
   /* Reader Mode */
   .reader-mode {
     max-width: 800px;
@@ -172,7 +251,7 @@
     line-height: 1.6;
     opacity: 0.8;
   }
-  
+
   .error-banner {
     background-color: #ef4444;
     color: white;
@@ -180,5 +259,12 @@
     border-radius: 4px;
     margin-bottom: 10px;
     font-weight: bold;
+  }
+
+  .raw-data {
+    font-family: Consolas, monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-all;
   }
 </style>

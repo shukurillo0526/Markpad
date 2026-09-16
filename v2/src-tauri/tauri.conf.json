@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Markpad Native",
-  "version": "1.0.0",
-  "identifier": "com.markpadnative.desktop",
+  "version": "1.0.1",
+  "identifier": "Voha.MarkpadNative",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -12,13 +12,15 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Markpad Native",
         "width": 1000,
-        "height": 700
+        "height": 700,
+        "resizable": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob:"
     }
   },
   "bundle": {

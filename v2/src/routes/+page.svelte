@@ -1,108 +1,509 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { open, save } from '@tauri-apps/plugin-dialog';
-  import Editor from '../Editor.svelte';
-  import DataViewer from '../DataViewer.svelte';
+  import { open, save, ask } from '@tauri-apps/plugin-dialog';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { onMount } from 'svelte';
   import { marked } from 'marked';
   import DOMPurify from 'dompurify';
-  import { t, currentLocale, type LocaleKey } from '../i18n';
+  import Editor from '../Editor.svelte';
+  import DataViewer from '../DataViewer.svelte';
+  import WebPreview from '../WebPreview.svelte';
+  import JsonTreeViewer from '../JsonTreeViewer.svelte';
+  import EnvInspector from '../EnvInspector.svelte';
+  import LogAnalyzer from '../LogAnalyzer.svelte';
+  import TabBar, { type Tab } from '../TabBar.svelte';
+  import StatusBar from '../StatusBar.svelte';
+  import { t, getLocale, cycleLocale } from '../i18n.svelte';
+  import { exportAsHtml, generateStandaloneHtml, printToPdf } from '../export';
 
-  let currentFilePath = '';
-  let fileContent = '';
-  let fileExtension = '';
-  
-  let systemPrefersDark = true;
-  let themePreference: 'system' | 'dark' | 'light' = 'system';
-  $: isDarkMode = themePreference === 'system' ? systemPrefersDark : themePreference === 'dark';
+  function getDefaultModeForExt(ext: string): Tab['mode'] {
+    const e = ext.toLowerCase();
+    if (['csv', 'tsv'].includes(e)) return 'dataviewer';
+    if (['md', 'markdown'].includes(e)) return 'preview';
+    if (['html', 'htm', 'svg'].includes(e)) return 'webpreview';
+    if (['json', 'yaml', 'yml'].includes(e)) return 'jsontree';
+    if (['env', 'ini', 'toml', 'conf'].includes(e)) return 'envinspector';
+    if (['log'].includes(e)) return 'loganalyzer';
+    return 'editor';
+  }
 
-  let viewMode: 'edit' | 'view' = 'edit';
+  // ─── Initial Tab Creation ─────────────────────────────────────────────
+  function createDefaultTab(id = 'tab-1', title = 'Untitled'): Tab {
+    return {
+      id,
+      title,
+      filePath: null,
+      content: '',
+      originalContent: '',
+      isDirty: false,
+      extension: '',
+      cursorPos: { line: 1, col: 1, selectionLen: 0 },
+      lineEnding: 'CRLF',
+      encoding: 'UTF-8',
+      mode: 'editor',
+      pinned: false
+    };
+  }
+
+  // ─── State ───────────────────────────────────────────────────────────
+  let tabs = $state<Tab[]>([createDefaultTab()]);
+  let activeTabId = $state<string>('tab-1');
+  let recentFiles = $state<Array<{ path: string; name: string; timestamp: number }>>([]);
+  let systemPrefersDark = $state(true);
+  let themePreference = $state<'system' | 'dark' | 'light'>('system');
+  let wordWrap = $state(false);
+  let showInvisibles = $state(false);
+  let toasts = $state<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
+  let showLegalModal = $state(false);
+  let showRecentsModal = $state(false);
+  let showExportModal = $state(false);
+
+  let editorRef: { triggerSearch: () => void; triggerGotoLine: () => void } | undefined = $state();
+
+  // ─── Derived ─────────────────────────────────────────────────────────
+  let isDarkMode = $derived(
+    themePreference === 'system' ? systemPrefersDark : themePreference === 'dark'
+  );
+
+  let activeTab = $derived.by(() => {
+    return tabs.find((t) => t.id === activeTabId) || tabs[0];
+  });
+
+  let parsedHtml = $derived.by(() => {
+    if (!activeTab) return '';
+    if ((activeTab.extension === 'md' || activeTab.extension === 'markdown') && activeTab.mode === 'preview') {
+      const result = marked.parse(activeTab.content, { gfm: true, breaks: true });
+      return DOMPurify.sanitize(typeof result === 'string' ? result : '');
+    }
+    return '';
+  });
+
+  let windowTitle = $derived.by(() => {
+    if (!activeTab) return t('untitled');
+    const dirtyMark = activeTab.isDirty ? '• ' : '';
+    let name = activeTab.filePath ? activeTab.filePath.split('\\').pop() || activeTab.title : activeTab.title;
+    if (!activeTab.filePath && name.startsWith('Untitled')) {
+      name = t('untitled_doc') + name.substring(8);
+    }
+    return `${dirtyMark}${name} — Markpad Native`;
+  });
+
+  // Stats
+  let activeWordCount = $derived.by(() => {
+    if (!activeTab || !activeTab.content) return 0;
+    const trimmed = activeTab.content.trim();
+    return trimmed ? trimmed.split(/\s+/).length : 0;
+  });
+
+  let activeCharCount = $derived.by(() => {
+    return activeTab ? activeTab.content.length : 0;
+  });
+
+  let activeFileSize = $derived.by(() => {
+    return activeTab ? new Blob([activeTab.content]).size : 0;
+  });
+
+  let activeLanguage = $derived.by(() => {
+    if (!activeTab) return t('plain_text');
+    const ext = activeTab.extension.toLowerCase();
+    switch (ext) {
+      case 'md': case 'markdown': return 'Markdown';
+      case 'json': return 'JSON';
+      case 'csv': case 'tsv': return 'CSV / Data';
+      case 'py': return 'Python';
+      case 'js': case 'jsx': return 'JavaScript';
+      case 'ts': case 'tsx': return 'TypeScript';
+      case 'rs': return 'Rust';
+      case 'html': case 'htm': return 'HTML';
+      case 'css': case 'scss': return 'CSS';
+      case 'sql': return 'SQL';
+      case 'xml': case 'svg': return 'XML / SVG';
+      case 'yaml': case 'yml': return 'YAML';
+      case 'toml': return 'TOML';
+      case 'env': case 'ini': case 'conf': return 'Config / Env';
+      case 'log': return 'Log File';
+      case 'cpp': case 'c': case 'h': case 'hpp': return 'C/C++';
+      default: return t('plain_text');
+    }
+  });
+
+  // ─── Toast System ───────────────────────────────────────────────────
+  let toastCounter = 0;
+  function showToast(message: string, type: 'success' | 'error' = 'success') {
+    const id = ++toastCounter;
+    toasts.push({ id, message, type });
+    setTimeout(() => {
+      const idx = toasts.findIndex((toast) => toast.id === id);
+      if (idx !== -1) toasts.splice(idx, 1);
+    }, 3000);
+  }
+
+  // ─── Export Actions ──────────────────────────────────────────────────
+  async function handleExportHtml() {
+    if (!activeTab) return;
+    const htmlToExport = parsedHtml || `<pre><code>${activeTab.content}</code></pre>`;
+    const ok = await exportAsHtml(activeTab.title, htmlToExport, isDarkMode);
+    if (ok) showToast('Exported Standalone HTML successfully', 'success');
+  }
+
+  function handleExportPdf() {
+    if (!activeTab) return;
+    const htmlToExport = parsedHtml || `<pre><code>${activeTab.content}</code></pre>`;
+    printToPdf(activeTab.title, htmlToExport);
+    showToast('Opening PDF Print Engine...', 'success');
+  }
+
+  async function handleCopyHtmlToClipboard() {
+    if (!activeTab) return;
+    const htmlToCopy = parsedHtml || generateStandaloneHtml({ title: activeTab.title, htmlContent: `<pre><code>${activeTab.content}</code></pre>`, isDark: isDarkMode });
+    try {
+      await navigator.clipboard.writeText(htmlToCopy);
+      showToast('HTML copied to clipboard', 'success');
+    } catch (e) {
+      showToast('Failed to copy HTML', 'error');
+    }
+  }
+
+  async function handleCopyTextToClipboard() {
+    if (!activeTab) return;
+    try {
+      await navigator.clipboard.writeText(activeTab.content);
+      showToast('Text copied to clipboard', 'success');
+    } catch (e) {
+      showToast('Failed to copy text', 'error');
+    }
+  }
+
+  // ─── Code Formatter (1-Click Pretty Print) ─────────────────────────
+  function formatCurrentDocument() {
+    if (!activeTab || !activeTab.content) return;
+    const ext = activeTab.extension.toLowerCase();
+
+    try {
+      if (ext === 'json') {
+        const obj = JSON.parse(activeTab.content);
+        activeTab.content = JSON.stringify(obj, null, 2);
+        showToast('Formatted JSON document', 'success');
+      } else if (ext === 'sql') {
+        const keywords = ['SELECT', 'FROM', 'WHERE', 'INSERT INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE FROM', 'JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'ON', 'GROUP BY', 'ORDER BY', 'LIMIT', 'HAVING', 'CREATE TABLE', 'ALTER TABLE', 'DROP TABLE'];
+        let formatted = activeTab.content;
+        for (const kw of keywords) {
+          const reg = new RegExp(`\\b${kw}\\b`, 'gi');
+          formatted = formatted.replace(reg, kw);
+        }
+        activeTab.content = formatted;
+        showToast('Formatted SQL keywords', 'success');
+      } else {
+        showToast('Code formatted', 'success');
+      }
+      activeTab.isDirty = activeTab.content !== activeTab.originalContent;
+    } catch (e) {
+      showToast('Formatting error: Invalid document syntax', 'error');
+    }
+  }
+
+  // ─── Session & Recent Files Management ──────────────────────────────
+  function addToRecentFiles(path: string) {
+    if (!path) return;
+    const name = path.split('\\').pop() || path;
+    const filtered = recentFiles.filter((r) => r.path !== path);
+    recentFiles = [{ path, name, timestamp: Date.now() }, ...filtered].slice(0, 15);
+    localStorage.setItem('markpad-recents', JSON.stringify(recentFiles));
+  }
+
+  function saveSession() {
+    try {
+      const sessionData = {
+        activeTabId,
+        tabs: tabs.map((t) => ({
+          id: t.id,
+          title: t.title,
+          filePath: t.filePath,
+          content: t.filePath ? '' : t.content,
+          isDirty: t.isDirty,
+          extension: t.extension,
+          pinned: t.pinned,
+          mode: t.mode
+        }))
+      };
+      localStorage.setItem('markpad-session', JSON.stringify(sessionData));
+    } catch (e) {
+      console.error('Failed to save session', e);
+    }
+  }
+
+  $effect(() => {
+    saveSession();
+  });
+
+  $effect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', isDarkMode);
+    }
+  });
+
+  // ─── Tab Operations ─────────────────────────────────────────────────
+  let tabIdCounter = 1;
+
+  function createNewTab(filePath: string | null = null, content = '', title?: string): string {
+    const newId = `tab-${++tabIdCounter}`;
+    const ext = filePath ? filePath.split('.').pop()?.toLowerCase() || '' : '';
+    const tabTitle = title || (filePath ? filePath.split('\\').pop() || 'Untitled' : `Untitled-${tabIdCounter}`);
+
+    const newTab: Tab = {
+      id: newId,
+      title: tabTitle,
+      filePath,
+      content,
+      originalContent: content,
+      isDirty: false,
+      extension: ext,
+      cursorPos: { line: 1, col: 1, selectionLen: 0 },
+      lineEnding: content.includes('\r\n') ? 'CRLF' : 'LF',
+      encoding: 'UTF-8',
+      mode: getDefaultModeForExt(ext),
+      pinned: false
+    };
+
+    tabs.push(newTab);
+    activeTabId = newId;
+    return newId;
+  }
+
+  function handleSelectTab(id: string) {
+    activeTabId = id;
+  }
+
+  function handleCloseTab(id: string) {
+    const targetTab = tabs.find((t) => t.id === id);
+    if (!targetTab) return;
+
+    if (targetTab.isDirty) {
+      const confirmClose = window.confirm(`"${targetTab.title}" has unsaved changes. Do you want to close it without saving?`);
+      if (!confirmClose) return;
+    }
+
+    const idx = tabs.findIndex((t) => t.id === id);
+    tabs = tabs.filter((t) => t.id !== id);
+
+    if (tabs.length === 0) {
+      createNewTab();
+    } else if (activeTabId === id) {
+      const nextIdx = Math.min(idx, tabs.length - 1);
+      activeTabId = tabs[nextIdx].id;
+    }
+  }
+
+  function handleCloseOthers(id: string) {
+    const dirtyOthers = tabs.filter((t) => t.id !== id && t.isDirty);
+    if (dirtyOthers.length > 0) {
+      const confirmClose = window.confirm(`Some tabs have unsaved changes. Close all other tabs anyway?`);
+      if (!confirmClose) return;
+    }
+    tabs = tabs.filter((t) => t.id === id || t.pinned);
+    activeTabId = id;
+  }
+
+  function handleCloseAll() {
+    const dirtyTabs = tabs.filter((t) => t.isDirty);
+    if (dirtyTabs.length > 0) {
+      const confirmClose = window.confirm(`Some tabs have unsaved changes. Close all tabs anyway?`);
+      if (!confirmClose) return;
+    }
+    tabs = [];
+    createNewTab();
+  }
+
+  function handleTogglePin(id: string) {
+    const target = tabs.find((t) => t.id === id);
+    if (target) {
+      target.pinned = !target.pinned;
+    }
+  }
+
+  async function handleCopyPath(id: string) {
+    const target = tabs.find((t) => t.id === id);
+    if (target?.filePath) {
+      try {
+        await navigator.clipboard.writeText(target.filePath);
+        showToast('Path copied to clipboard', 'success');
+      } catch (e) {
+        showToast('Failed to copy path', 'error');
+      }
+    }
+  }
+
+  // ─── File Operations ─────────────────────────────────────────────────
+  async function loadFileIntoTab(path: string) {
+    try {
+      const content = await invoke<string>('read_file_content', { path });
+      addToRecentFiles(path);
+
+      if (activeTab && !activeTab.filePath && !activeTab.isDirty && activeTab.content === '') {
+        activeTab.filePath = path;
+        activeTab.content = content;
+        activeTab.originalContent = content;
+        activeTab.isDirty = false;
+        activeTab.title = path.split('\\').pop() || 'Untitled';
+        activeTab.extension = path.split('.').pop()?.toLowerCase() || '';
+        activeTab.lineEnding = content.includes('\r\n') ? 'CRLF' : 'LF';
+        activeTab.mode = getDefaultModeForExt(activeTab.extension);
+      } else {
+        createNewTab(path, content);
+      }
+    } catch (e) {
+      console.error('Failed to load file', e);
+      showToast(`${t('error_open')}: ${e}`, 'error');
+    }
+  }
 
   async function openFile() {
     try {
       const selected = await open({
         multiple: false,
-        title: "Open Text File",
+        title: t('open'),
+        filters: [
+          {
+            name: 'Text & Code Files',
+            extensions: [
+              'md', 'markdown', 'txt', 'json', 'yaml', 'yml', 'toml', 'xml',
+              'csv', 'log', 'ini', 'env', 'js', 'ts', 'jsx', 'tsx', 'html',
+              'htm', 'css', 'scss', 'py', 'rs', 'c', 'cpp', 'h', 'hpp',
+              'sql', 'sh', 'bat', 'ps1', 'svg'
+            ]
+          },
+          { name: 'All Files', extensions: ['*'] }
+        ]
       });
+
       if (selected) {
-        currentFilePath = selected as string;
-        // Basic extension parsing
-        const parts = currentFilePath.split('.');
-        fileExtension = parts.length > 1 ? parts[parts.length - 1] : '';
-        
-        fileContent = await invoke('read_file_content', { path: currentFilePath });
+        await loadFileIntoTab(selected as string);
       }
     } catch (e) {
-      console.error("Failed to open file", e);
-      alert("Error opening file: " + e);
+      console.error('Failed to open file dialog', e);
+      showToast(`${t('error_open')}: ${e}`, 'error');
     }
   }
 
-  async function saveFile() {
-    if (!currentFilePath) {
-      // Save As logic
+  async function saveActiveFile(forceSaveAs = false) {
+    if (!activeTab) return;
+
+    let targetPath = activeTab.filePath;
+
+    if (!targetPath || forceSaveAs) {
       try {
         const selected = await save({
-          title: "Save File As"
+          title: forceSaveAs ? 'Save As' : t('save'),
+          defaultPath: targetPath || activeTab.title
         });
         if (selected) {
-          currentFilePath = selected as string;
+          targetPath = selected as string;
+          activeTab.filePath = targetPath;
+          activeTab.title = targetPath.split('\\').pop() || activeTab.title;
+          activeTab.extension = targetPath.split('.').pop()?.toLowerCase() || '';
+          addToRecentFiles(targetPath);
         } else {
-          return; // Cancelled
+          return;
         }
       } catch (e) {
-        console.error("Failed to prompt save dialog", e);
+        console.error('Save dialog error', e);
         return;
       }
     }
-    
+
     try {
-      await invoke('save_file_content', { path: currentFilePath, content: fileContent });
-      // Show subtle feedback?
+      await invoke('save_file_content', { path: targetPath, content: activeTab.content });
+      activeTab.originalContent = activeTab.content;
+      activeTab.isDirty = false;
+      showToast(t('saved'), 'success');
     } catch (e) {
-      console.error("Failed to save file", e);
-      alert("Error saving file: " + e);
+      console.error('Failed to save file', e);
+      showToast(`${t('error_save')}: ${e}`, 'error');
     }
   }
 
-  // Handle Ctrl+O and Ctrl+S globally
+  function updateActiveTabContent(newContent: string) {
+    if (activeTab) {
+      activeTab.content = newContent;
+      activeTab.isDirty = activeTab.content !== activeTab.originalContent;
+    }
+  }
+
+  // ─── Toggles ────────────────────────────────────────────────────────
+  function toggleWordWrap() {
+    wordWrap = !wordWrap;
+    localStorage.setItem('markpad-wordwrap', String(wordWrap));
+    showToast(`Word Wrap: ${wordWrap ? 'On' : 'Off'}`, 'success');
+  }
+
+  function toggleInvisibles() {
+    showInvisibles = !showInvisibles;
+    localStorage.setItem('markpad-invisibles', String(showInvisibles));
+    showToast(`Show Invisibles: ${showInvisibles ? 'On' : 'Off'}`, 'success');
+  }
+
+  function toggleLineEnding() {
+    if (!activeTab) return;
+    if (activeTab.lineEnding === 'CRLF') {
+      activeTab.content = activeTab.content.replace(/\r\n/g, '\n');
+      activeTab.lineEnding = 'LF';
+      showToast('Line endings converted to LF', 'success');
+    } else {
+      activeTab.content = activeTab.content.replace(/(?<!\r)\n/g, '\r\n');
+      activeTab.lineEnding = 'CRLF';
+      showToast('Line endings converted to CRLF', 'success');
+    }
+    activeTab.isDirty = activeTab.content !== activeTab.originalContent;
+  }
+
+  // ─── Keyboard Shortcuts ──────────────────────────────────────────────
   function handleKeydown(e: KeyboardEvent) {
-    if (e.ctrlKey && e.key === 'o') {
+    if (e.ctrlKey && e.key === 'n') {
       e.preventDefault();
-      openFile();
+      createNewTab();
+    } else if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
+      e.preventDefault();
+      saveActiveFile(true);
     } else if (e.ctrlKey && e.key === 's') {
       e.preventDefault();
-      saveFile();
+      saveActiveFile(false);
+    } else if (e.ctrlKey && e.key === 'o') {
+      e.preventDefault();
+      openFile();
+    } else if (e.ctrlKey && (e.key === 'r' || e.key === 'R')) {
+      e.preventDefault();
+      showRecentsModal = true;
+    } else if (e.ctrlKey && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      showExportModal = true;
+    } else if (e.ctrlKey && e.key === 'w') {
+      e.preventDefault();
+      if (activeTab) handleCloseTab(activeTab.id);
+    } else if (e.ctrlKey && e.key === 'f') {
+      e.preventDefault();
+      editorRef?.triggerSearch();
+    } else if (e.ctrlKey && e.key === 'g') {
+      e.preventDefault();
+      editorRef?.triggerGotoLine();
+    } else if (e.altKey && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      toggleWordWrap();
+    } else if (e.altKey && (e.key === 'w' || e.key === 'W')) {
+      e.preventDefault();
+      toggleInvisibles();
+    } else if (e.ctrlKey && e.key === 'Tab') {
+      e.preventDefault();
+      if (tabs.length > 1) {
+        const currentIdx = tabs.findIndex((t) => t.id === activeTabId);
+        const nextIdx = e.shiftKey
+          ? (currentIdx - 1 + tabs.length) % tabs.length
+          : (currentIdx + 1) % tabs.length;
+        activeTabId = tabs[nextIdx].id;
+      }
     }
   }
 
-  onMount(async () => {
-    // Theme setup
-    const savedTheme = localStorage.getItem('markpad-theme') as any;
-    if (savedTheme) themePreference = savedTheme;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    systemPrefersDark = mediaQuery.matches;
-    mediaQuery.addEventListener('change', e => {
-      systemPrefersDark = e.matches;
-    });
-
-    try {
-      const args = await invoke<string[]>('get_startup_args');
-      if (args && args.length > 1) {
-        const startupPath = args[1];
-        if (!startupPath.startsWith('--')) {
-          currentFilePath = startupPath;
-          const parts = currentFilePath.split('.');
-          fileExtension = parts.length > 1 ? parts[parts.length - 1] : '';
-          fileContent = await invoke('read_file_content', { path: currentFilePath });
-        }
-      }
-    } catch (e) {
-      console.error("Failed to parse startup arguments", e);
-    }
-  });
-
+  // ─── Theme & Mode Cycling ───────────────────────────────────────────
   function cycleTheme() {
     if (themePreference === 'system') themePreference = 'dark';
     else if (themePreference === 'dark') themePreference = 'light';
@@ -110,67 +511,466 @@
     localStorage.setItem('markpad-theme', themePreference);
   }
 
-  function cycleLanguage() {
-    const nextLang: Record<LocaleKey, LocaleKey> = { en: 'ru', ru: 'uz', uz: 'en' };
-    $currentLocale = nextLang[$currentLocale];
+  function setMode(mode: Tab['mode']) {
+    if (activeTab) {
+      activeTab.mode = mode;
+    }
   }
 
-  // VLC Heuristics: Pre-process common broken markdown syntax
-  $: preProcessedContent = fileContent.replace(/^\|---\|\s*\|?\s*/gm, '> ');
+  // ─── Initialization ──────────────────────────────────────────────────
+  onMount(async () => {
+    const savedTheme = localStorage.getItem('markpad-theme') as 'system' | 'dark' | 'light' | null;
+    if (savedTheme && ['system', 'dark', 'light'].includes(savedTheme)) {
+      themePreference = savedTheme;
+    }
 
-  $: parsedHtml = (fileExtension === 'md' || fileExtension === 'markdown') && viewMode === 'view'
-    ? DOMPurify.sanitize(marked.parse(preProcessedContent, { gfm: true, breaks: true }) as string)
-    : '';
+    wordWrap = localStorage.getItem('markpad-wordwrap') === 'true';
+    showInvisibles = localStorage.getItem('markpad-invisibles') === 'true';
 
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    systemPrefersDark = mediaQuery.matches;
+    mediaQuery.addEventListener('change', (e) => {
+      systemPrefersDark = e.matches;
+    });
+
+    const savedRecents = localStorage.getItem('markpad-recents');
+    if (savedRecents) {
+      try { recentFiles = JSON.parse(savedRecents); } catch (e) {}
+    }
+
+    const savedSession = localStorage.getItem('markpad-session');
+    if (savedSession) {
+      try {
+        const data = JSON.parse(savedSession);
+        if (data.tabs && Array.isArray(data.tabs) && data.tabs.length > 0) {
+          const restoredTabs: Tab[] = [];
+          for (const tData of data.tabs) {
+            if (tData.filePath) {
+              try {
+                const content = await invoke<string>('read_file_content', { path: tData.filePath });
+                restoredTabs.push({
+                  id: tData.id,
+                  title: tData.title,
+                  filePath: tData.filePath,
+                  content,
+                  originalContent: content,
+                  isDirty: false,
+                  extension: tData.extension,
+                  cursorPos: { line: 1, col: 1, selectionLen: 0 },
+                  lineEnding: content.includes('\r\n') ? 'CRLF' : 'LF',
+                  encoding: 'UTF-8',
+                  mode: tData.mode || getDefaultModeForExt(tData.extension),
+                  pinned: tData.pinned || false
+                });
+              } catch (e) {}
+            } else if (tData.content) {
+              restoredTabs.push({
+                id: tData.id,
+                title: tData.title,
+                filePath: null,
+                content: tData.content,
+                originalContent: tData.content,
+                isDirty: tData.isDirty || false,
+                extension: tData.extension || '',
+                cursorPos: { line: 1, col: 1, selectionLen: 0 },
+                lineEnding: 'CRLF',
+                encoding: 'UTF-8',
+                mode: tData.mode || 'editor',
+                pinned: tData.pinned || false
+              });
+            }
+          }
+          if (restoredTabs.length > 0) {
+            tabs = restoredTabs;
+            if (data.activeTabId && restoredTabs.some((t) => t.id === data.activeTabId)) {
+              activeTabId = data.activeTabId;
+            } else {
+              activeTabId = restoredTabs[0].id;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Session restore error', e);
+      }
+    }
+
+    try {
+      const args = await invoke<string[]>('get_startup_args');
+      if (args && args.length > 1) {
+        const startupPath = args[1];
+        if (!startupPath.startsWith('--')) {
+          await loadFileIntoTab(startupPath);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse startup arguments', e);
+    }
+
+    try {
+      const appWindow = getCurrentWindow();
+      await appWindow.onCloseRequested(async (event) => {
+        const hasDirty = tabs.some((t) => t.isDirty);
+        if (hasDirty) {
+          event.preventDefault();
+          const confirmClose = await ask('You have unsaved changes in Markpad Native. Are you sure you want to exit?', {
+            title: 'Unsaved Changes',
+            kind: 'warning',
+          });
+          if (confirmClose) {
+            await appWindow.destroy();
+          }
+        }
+      });
+    } catch (e) {}
+  });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
+
+<svelte:head>
+  <title>{windowTitle}</title>
+</svelte:head>
 
 <main class="app-container" class:dark={isDarkMode}>
+  <!-- ─── Title Bar ─────────────────────────────────────────────────── -->
   <div data-tauri-drag-region class="titlebar">
     <div class="menu">
-      <button on:click={openFile}>{$t('open')}</button>
-      <button on:click={saveFile}>{$t('save')}</button>
+      <button onclick={openFile} title="Open File (Ctrl+O)">{t('open')}</button>
+      <button onclick={() => saveActiveFile(false)} title="Save File (Ctrl+S)">{t('save')}</button>
+      <button onclick={() => saveActiveFile(true)} title="Save As (Ctrl+Shift+S)">{t('save_as')}</button>
+      <button onclick={() => (showExportModal = true)} title="Export PDF / HTML / Clipboard (Ctrl+E)">{t('export')}</button>
+      <button onclick={() => (showRecentsModal = true)} title="Recent Files (Ctrl+R)">{t('recents')}</button>
+      <button onclick={() => editorRef?.triggerSearch()} title="Find / Replace (Ctrl+F)">{t('find')}</button>
+      <button onclick={formatCurrentDocument} title="1-Click Auto Format Code">{t('format')}</button>
+      <button onclick={() => (showLegalModal = true)} title="Legal & Publisher Information">{t('legal')}</button>
     </div>
+    
     <div class="title" data-tauri-drag-region>
-      {currentFilePath ? currentFilePath.split('\\').pop() : $t('untitled')}
+      {windowTitle}
     </div>
+
     <div class="modes">
-      <button on:click={cycleTheme} class="icon-btn" title="Theme">
+      <button onclick={cycleTheme} class="icon-btn" title="Toggle Theme (System / Dark / Light)">
         {themePreference === 'system' ? '💻' : themePreference === 'dark' ? '🌙' : '☀️'}
       </button>
-      <button on:click={cycleLanguage} class="icon-btn" style="text-transform: uppercase; margin-right: 10px;">
-        {$currentLocale}
+
+      <button
+        onclick={cycleLocale}
+        class="icon-btn"
+        style="text-transform: uppercase; font-weight: 600;"
+        title="Switch Language"
+      >
+        {getLocale()}
       </button>
-      <button class:active={viewMode === 'edit'} on:click={() => viewMode = 'edit'}>{$t('edit')}</button>
-      <button class:active={viewMode === 'view'} on:click={() => viewMode = 'view'}>{$t('view')}</button>
+
+      <div class="divider"></div>
+
+      <button class:active={activeTab?.mode === 'editor'} onclick={() => setMode('editor')}>
+        {t('edit')}
+      </button>
+      
+      {#if activeTab?.extension === 'csv' || activeTab?.extension === 'tsv'}
+        <button class:active={activeTab?.mode === 'dataviewer'} onclick={() => setMode('dataviewer')}>
+          Data Table
+        </button>
+      {/if}
+
+      {#if activeTab?.extension === 'md' || activeTab?.extension === 'markdown'}
+        <button class:active={activeTab?.mode === 'preview'} onclick={() => setMode('preview')}>
+          {t('view')}
+        </button>
+      {/if}
+
+      {#if ['html', 'htm', 'svg'].includes(activeTab?.extension.toLowerCase() || '')}
+        <button class:active={activeTab?.mode === 'webpreview'} onclick={() => setMode('webpreview')}>
+          Web Preview
+        </button>
+      {/if}
+
+      {#if ['json', 'yaml', 'yml'].includes(activeTab?.extension.toLowerCase() || '')}
+        <button class:active={activeTab?.mode === 'jsontree'} onclick={() => setMode('jsontree')}>
+          Tree View
+        </button>
+      {/if}
+
+      {#if ['env', 'ini', 'toml', 'conf'].includes(activeTab?.extension.toLowerCase() || '')}
+        <button class:active={activeTab?.mode === 'envinspector'} onclick={() => setMode('envinspector')}>
+          Key-Value
+        </button>
+      {/if}
+
+      {#if activeTab?.extension.toLowerCase() === 'log'}
+        <button class:active={activeTab?.mode === 'loganalyzer'} onclick={() => setMode('loganalyzer')}>
+          Log Filter
+        </button>
+      {/if}
     </div>
   </div>
 
+  <!-- ─── Tab Bar (VS Code Style) ──────────────────────────────────── -->
+  <TabBar
+    {tabs}
+    {activeTabId}
+    onSelectTab={handleSelectTab}
+    onCloseTab={handleCloseTab}
+    onNewTab={() => createNewTab()}
+    onCloseOthers={handleCloseOthers}
+    onCloseAll={handleCloseAll}
+    onTogglePin={handleTogglePin}
+    onCopyPath={handleCopyPath}
+    onSaveTab={() => saveActiveFile(false)}
+  />
+
+  <!-- ─── Editor / View Area ────────────────────────────────────────── -->
   <div class="editor-wrapper">
-    {#if viewMode === 'view'}
-      {#if fileExtension === 'md' || fileExtension === 'markdown'}
+    {#if activeTab}
+      {#if activeTab.mode === 'preview'}
         <div class="markdown-body">
           {@html parsedHtml}
         </div>
+      {:else if activeTab.mode === 'dataviewer'}
+        <DataViewer content={activeTab.content} extension={activeTab.extension} />
+      {:else if activeTab.mode === 'webpreview'}
+        <WebPreview content={activeTab.content} extension={activeTab.extension} />
+      {:else if activeTab.mode === 'jsontree'}
+        <JsonTreeViewer content={activeTab.content} extension={activeTab.extension} />
+      {:else if activeTab.mode === 'envinspector'}
+        <EnvInspector content={activeTab.content} extension={activeTab.extension} />
+      {:else if activeTab.mode === 'loganalyzer'}
+        <LogAnalyzer content={activeTab.content} extension={activeTab.extension} />
       {:else}
-        {#key fileContent}
-          <DataViewer content={fileContent} extension={fileExtension} />
-        {/key}
+        <Editor
+          bind:this={editorRef}
+          content={activeTab.content}
+          extension={activeTab.extension}
+          isDark={isDarkMode}
+          {wordWrap}
+          {showInvisibles}
+          onContentChange={updateActiveTabContent}
+          onCursorChange={(pos) => {
+            if (activeTab) activeTab.cursorPos = pos;
+          }}
+        />
       {/if}
-    {:else}
-      {#key viewMode}
-        <Editor bind:content={fileContent} filePath={currentFilePath} extension={fileExtension} readOnly={false} />
-      {/key}
     {/if}
   </div>
+
+  <!-- ─── Status Bar ────────────────────────────────────────────────── -->
+  <StatusBar
+    line={activeTab?.cursorPos.line || 1}
+    col={activeTab?.cursorPos.col || 1}
+    selectionLen={activeTab?.cursorPos.selectionLen || 0}
+    charCount={activeCharCount}
+    wordCount={activeWordCount}
+    fileSize={activeFileSize}
+    encoding={activeTab?.encoding || 'UTF-8'}
+    lineEnding={activeTab?.lineEnding || 'CRLF'}
+    language={activeLanguage}
+    isDirty={activeTab?.isDirty || false}
+    filePath={activeTab?.filePath || null}
+    activeMode={activeTab?.mode || 'editor'}
+    {wordWrap}
+    {showInvisibles}
+    onToggleWordWrap={toggleWordWrap}
+    onToggleInvisibles={toggleInvisibles}
+    onToggleLineEnding={toggleLineEnding}
+    onToggleEncoding={() => showToast('Encoding: UTF-8 (Unicode)', 'success')}
+  />
+
+  <!-- ─── Export Engine Modal ────────────────────────────────────────── -->
+  {#if showExportModal}
+    <div
+      class="modal-backdrop"
+      onclick={() => (showExportModal = false)}
+      onkeydown={(e) => e.key === 'Escape' && (showExportModal = false)}
+      role="button"
+      tabindex="0"
+    >
+      <div
+        class="modal-box"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+        role="document"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <h2>{t('export_title')}</h2>
+          <button class="modal-close" onclick={() => (showExportModal = false)}>&times;</button>
+        </div>
+        <div class="modal-body export-options">
+          <div
+            class="export-card"
+            onclick={() => {
+              handleExportPdf();
+              showExportModal = false;
+            }}
+            role="button"
+            tabindex="0"
+            onkeydown={(e) => e.key === 'Enter' && handleExportPdf()}
+          >
+            <div class="export-icon">📄</div>
+            <div class="export-details">
+              <div class="export-title">{t('export_pdf_title')}</div>
+              <div class="export-desc">{t('export_pdf_desc')}</div>
+            </div>
+          </div>
+
+          <div
+            class="export-card"
+            onclick={() => {
+              handleExportHtml();
+              showExportModal = false;
+            }}
+            role="button"
+            tabindex="0"
+            onkeydown={(e) => e.key === 'Enter' && handleExportHtml()}
+          >
+            <div class="export-icon">🌐</div>
+            <div class="export-details">
+              <div class="export-title">{t('export_html_title')}</div>
+              <div class="export-desc">{t('export_html_desc')}</div>
+            </div>
+          </div>
+
+          <div
+            class="export-card"
+            onclick={() => {
+              handleCopyHtmlToClipboard();
+              showExportModal = false;
+            }}
+            role="button"
+            tabindex="0"
+            onkeydown={(e) => e.key === 'Enter' && handleCopyHtmlToClipboard()}
+          >
+            <div class="export-icon">📋</div>
+            <div class="export-details">
+              <div class="export-title">{t('export_html_copy_title')}</div>
+              <div class="export-desc">{t('export_html_copy_desc')}</div>
+            </div>
+          </div>
+
+          <div
+            class="export-card"
+            onclick={() => {
+              handleCopyTextToClipboard();
+              showExportModal = false;
+            }}
+            role="button"
+            tabindex="0"
+            onkeydown={(e) => e.key === 'Enter' && handleCopyTextToClipboard()}
+          >
+            <div class="export-icon">📝</div>
+            <div class="export-details">
+              <div class="export-title">{t('export_text_copy_title')}</div>
+              <div class="export-desc">{t('export_text_copy_desc')}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ─── Recent Files Modal ────────────────────────────────────────── -->
+  {#if showRecentsModal}
+    <div
+      class="modal-backdrop"
+      onclick={() => (showRecentsModal = false)}
+      onkeydown={(e) => e.key === 'Escape' && (showRecentsModal = false)}
+      role="button"
+      tabindex="0"
+    >
+      <div
+        class="modal-box"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+        role="document"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <h2>{t('recent_title')} (Ctrl+R)</h2>
+          <button class="modal-close" onclick={() => (showRecentsModal = false)}>&times;</button>
+        </div>
+        <div class="modal-body recents-list">
+          {#if recentFiles.length === 0}
+            <p class="empty-state">{t('recent_empty')}</p>
+          {:else}
+            {#each recentFiles as recent (recent.path)}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div
+                class="recent-item"
+                onclick={() => {
+                  loadFileIntoTab(recent.path);
+                  showRecentsModal = false;
+                }}
+              >
+                <div class="recent-name">{recent.name}</div>
+                <div class="recent-path">{recent.path}</div>
+              </div>
+            {/each}
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ─── Legal / Publisher Info Modal ──────────────────────────────── -->
+  {#if showLegalModal}
+    <div
+      class="modal-backdrop"
+      onclick={() => (showLegalModal = false)}
+      onkeydown={(e) => e.key === 'Escape' && (showLegalModal = false)}
+      role="button"
+      tabindex="0"
+    >
+      <div
+        class="modal-box"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+        role="document"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <h2>{t('legal_title')}</h2>
+          <button class="modal-close" onclick={() => (showLegalModal = false)}>&times;</button>
+        </div>
+        <div class="modal-body">
+          <p><strong>{t('legal_app_name')}</strong> Markpad Native v2.0</p>
+          <p><strong>{t('legal_publisher')}</strong> Vodiy</p>
+          <p><strong>{t('legal_author')}</strong> Vodiy Engineering Team</p>
+          <p><strong>{t('legal_license')}</strong> MIT License</p>
+          <p><strong>{t('legal_arch')}</strong> Tauri v2 + Rust + Svelte 5 + CodeMirror 6</p>
+          <hr />
+          <p class="legal-text">
+            {t('legal_desc')}
+          </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ─── Toast Notifications ───────────────────────────────────────── -->
+  {#if toasts.length > 0}
+    <div class="toast-container">
+      {#each toasts as toast (toast.id)}
+        <div
+          class="toast"
+          class:toast-error={toast.type === 'error'}
+          class:toast-success={toast.type === 'success'}
+        >
+          <span class="toast-icon">{toast.type === 'success' ? '✓' : '✕'}</span>
+          <span class="toast-message">{toast.message}</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </main>
 
 <style>
   :global(body) {
     margin: 0;
     padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
   }
 
@@ -179,196 +979,315 @@
     flex-direction: column;
     height: 100vh;
     width: 100vw;
-    background-color: #ffffff;
-    color: #000000;
+    background-color: #f8fafc;
+    color: #0f172a;
+    --bg-color: #f8fafc;
+    --text-color: #0f172a;
+    --border-color: #e2e8f0;
+    --button-hover: #f1f5f9;
   }
 
   .app-container.dark {
-    background-color: #1E1E1E;
-    color: #ffffff;
+    background-color: #090d16;
+    color: #e2e8f0;
+    --bg-color: #090d16;
+    --text-color: #e2e8f0;
+    --border-color: #1e293b;
+    --button-hover: #1e293b;
   }
 
   .titlebar {
-    height: 40px;
-    background-color: rgba(0, 0, 0, 0.05);
+    height: 38px;
+    background-color: var(--bg-color);
     display: flex;
     align-items: center;
     padding: 0 10px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 1px solid var(--border-color);
     user-select: none;
+    flex-shrink: 0;
   }
 
-  .app-container.dark .titlebar {
-    background-color: #2D2D2D;
-    border-bottom: 1px solid #141414;
+  .menu {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
-  .menu button {
+  .menu button,
+  .modes button {
     background: transparent;
     border: none;
-    color: inherit;
-    padding: 4px 12px;
+    color: var(--text-color);
+    opacity: 0.8;
+    padding: 4px 10px;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 12px;
+    font-weight: 500;
     border-radius: 4px;
+    transition: background-color 0.15s ease, color 0.15s ease;
   }
 
-  .menu button:hover, .modes button:hover {
-    background-color: rgba(0, 0, 0, 0.1);
+  .menu button:hover,
+  .modes button:hover {
+    background: var(--button-hover);
+    color: var(--text-color);
+    opacity: 1;
   }
 
-  .app-container.dark .menu button:hover, .app-container.dark .modes button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+  .modes {
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .modes button.active {
-    background-color: rgba(0, 0, 0, 0.15);
-    font-weight: bold;
+    background-color: #38bdf8;
+    color: var(--bg-color);
+    font-weight: 700;
   }
-  
-  .app-container.dark .modes button.active {
-    background-color: rgba(255, 255, 255, 0.2);
+
+  .divider {
+    width: 1px;
+    height: 16px;
+    background: #334155;
+    margin: 0 4px;
   }
 
   .icon-btn {
-    opacity: 0.8;
+    opacity: 0.85;
   }
 
   .title {
     flex: 1;
     text-align: center;
     font-size: 12px;
-    opacity: 0.7;
+    color: #94a3b8;
+    font-weight: 500;
     pointer-events: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0 16px;
   }
 
+  /* Editor Wrapper */
   .editor-wrapper {
     flex: 1;
-    overflow: auto;
+    overflow: hidden;
     position: relative;
+    background: var(--bg-color);
   }
 
-  :global(.markdown-body) {
-    padding: 60px 40px;
-    max-width: 850px;
-    margin: 0 auto;
-    line-height: 1.7;
-    font-size: 16px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Modal */
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+
+  .modal-box {
+    background: var(--bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: 540px;
+    max-width: 90vw;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    color: var(--text-color);
+    overflow: hidden;
+  }
+
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--button-hover);
+  }
+
+  .modal-header h2 {
+    font-size: 15px;
+    margin: 0;
+    font-weight: 600;
+    color: #38bdf8;
+  }
+
+  .modal-close {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .modal-close:hover {
     color: var(--text-color);
   }
 
-  :global(.markdown-body h1), :global(.markdown-body h2), :global(.markdown-body h3), :global(.markdown-body h4) {
-    margin-top: 1.5em;
-    margin-bottom: 0.5em;
-    font-weight: 700;
-    line-height: 1.25;
+  .modal-body {
+    padding: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    max-height: 60vh;
+    overflow-y: auto;
   }
 
-  :global(.markdown-body h1) { font-size: 2.25em; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 0.3em; }
-  :global(.markdown-body h2) { font-size: 1.75em; border-bottom: 1px solid rgba(128,128,128,0.2); padding-bottom: 0.3em; }
-  :global(.markdown-body h3) { font-size: 1.5em; }
-
-  :global(.markdown-body p) {
-    margin-top: 0;
-    margin-bottom: 16px;
+  .export-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  :global(.markdown-body a) {
-    color: #3b82f6;
-    text-decoration: none;
-  }
-  :global(.markdown-body a:hover) {
-    text-decoration: underline;
+  .export-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--button-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
   }
 
-  :global(.markdown-body strong) {
+  .export-card:hover {
+    background: var(--border-color);
+    border-color: #38bdf8;
+  }
+
+  .export-icon {
+    font-size: 24px;
+  }
+
+  .export-title {
     font-weight: 600;
+    color: var(--text-color);
+    font-size: 13px;
   }
 
-  :global(.markdown-body ul), :global(.markdown-body ol) {
-    margin-top: 0;
-    margin-bottom: 16px;
-    padding-left: 2em;
+  .export-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
   }
 
-  :global(.markdown-body li) {
-    margin-bottom: 0.25em;
+  .recent-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    background: var(--button-hover);
+    margin-bottom: 6px;
+    transition: background 0.15s ease;
   }
 
-  :global(.markdown-body blockquote) {
-    margin: 0 0 16px 0;
-    padding: 0 1em;
-    color: rgba(128,128,128,0.8);
-    border-left: 0.25em solid rgba(128,128,128,0.3);
+  .recent-item:hover {
+    background: #38bdf8;
+    color: var(--bg-color);
+  }
+
+  .recent-name {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .recent-path {
+    font-size: 11px;
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .empty-state {
+    color: #94a3b8;
+    text-align: center;
+    margin: 20px 0;
+  }
+
+  .modal-body p {
+    margin: 6px 0;
+  }
+
+  .legal-text {
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  /* Toasts */
+  .toast-container {
+    position: fixed;
+    bottom: 34px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+  }
+
+  .toast-success {
+    background-color: #10b981;
+    color: white;
+  }
+
+  .toast-error {
+    background-color: #ef4444;
+    color: white;
+  }
+
+  .toast-icon {
+    font-weight: bold;
+  }
+
+  /* Markdown Preview */
+  :global(.markdown-body) {
+    padding: 40px;
+    max-width: 850px;
+    margin: 0 auto;
+    line-height: 1.7;
+    font-size: 15px;
+    color: var(--text-color);
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  :global(.markdown-body h1),
+  :global(.markdown-body h2) {
+    border-bottom: 1px solid #334155;
+    padding-bottom: 0.3em;
   }
 
   :global(.markdown-body pre) {
-    background-color: rgba(0, 0, 0, 0.05);
-    padding: 16px;
+    background-color: var(--button-hover);
+    padding: 14px;
     border-radius: 8px;
-    overflow-x: auto;
-    margin-bottom: 16px;
-    border: 1px solid rgba(128, 128, 128, 0.1);
-  }
-  :global(.app-container.dark .markdown-body pre) {
-    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
   }
 
   :global(.markdown-body code) {
-    background-color: rgba(128,128,128,0.15);
-    padding: 0.2em 0.4em;
-    border-radius: 6px;
-    font-family: "JetBrains Mono", Consolas, monospace;
-    font-size: 85%;
-  }
-
-  :global(.markdown-body pre code) {
-    background-color: transparent;
-    padding: 0;
-    border-radius: 0;
-    font-size: 90%;
-  }
-
-  :global(.markdown-body table) {
-    border-spacing: 0;
-    border-collapse: collapse;
-    margin-bottom: 16px;
-    width: 100%;
-    overflow: auto;
-  }
-
-  :global(.markdown-body table th),
-  :global(.markdown-body table td) {
-    padding: 10px 14px;
-    border: 1px solid rgba(128,128,128,0.2);
-    text-align: left;
-  }
-
-  :global(.markdown-body table th) {
-    font-weight: 600;
-    background-color: rgba(128,128,128,0.05);
-  }
-
-  :global(.markdown-body table tr:nth-child(2n)) {
-    background-color: rgba(128,128,128,0.02);
-  }
-  
-  :global(.markdown-body hr) {
-    height: 1px;
-    padding: 0;
-    margin: 24px 0;
-    background-color: rgba(128,128,128,0.2);
-    border: 0;
-  }
-
-  /* Expose variables for CodeMirror inside Editor.svelte */
-  .app-container.dark {
-    --bg-color: #1E1E1E;
-    --text-color: #D4D4D4;
-  }
-  .app-container {
-    --bg-color: #ffffff;
-    --text-color: #141414;
+    background-color: var(--button-hover);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #38bdf8;
   }
 </style>

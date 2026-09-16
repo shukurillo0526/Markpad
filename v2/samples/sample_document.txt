@@ -1,0 +1,22 @@
+Markpad Native v2.0 — Plain Text Document Test
+Publisher: Vodiy
+
+================================================================================
+Overview
+================================================================================
+Markpad Native is designed as the "VLC of Text Files" — a lightweight, blazing-fast, and universal native utility for reading, editing, and managing text files of all formats.
+
+Key Capabilities:
+1. Multi-Tab VS Code style tabs with independent state.
+2. CodeMirror 6 text editor supporting 13+ syntax highlightings (Markdown, JSON, CSV, Python, JS, TS, Rust, C++, SQL, HTML, CSS, XML, YAML).
+3. Data Viewer mode for tabular CSV and TSV spreadsheets.
+4. Live Status Bar showing line/column counter, selection range, character & word counts, line ending switcher (CRLF / LF), and file size.
+5. Soft Word Wrap (Alt+Z) and Show Invisibles (Alt+W) toggles.
+6. Find & Replace panel (Ctrl+F / Ctrl+H) with regex support.
+7. Unsaved changes dirty state guard & Tauri window close protection.
+8. Session restore & Recent Files launcher (Ctrl+R).
+
+Test Instructions:
+- Try toggling Word Wrap (Alt+Z) on this long line: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+- Try toggling Show Invisibles (Alt+W) to view space dots and tab characters.
+- Try changing line endings between CRLF and LF via the status bar badge.
