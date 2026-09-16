@@ -42,6 +42,12 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const data = await response.json();
         
+        // Prevent downloading the very old v1.0.0 release automatically
+        if (data.tag_name === 'v1.0.0') {
+            window.location.href = 'https://github.com/shukurillo0526/Markpad/releases/latest';
+            return;
+        }
+
         // Find the .exe or .msi asset
         const exeAsset = data.assets.find(asset => asset.name.endsWith('.exe') || asset.name.endsWith('.msi'));
         
