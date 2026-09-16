@@ -42,8 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const data = await response.json();
         
-        // Find the .exe asset
-        const exeAsset = data.assets.find(asset => asset.name.endsWith('.exe'));
+        // Find the .exe or .msi asset
+        const exeAsset = data.assets.find(asset => asset.name.endsWith('.exe') || asset.name.endsWith('.msi'));
         
         if (exeAsset && exeAsset.browser_download_url) {
           // Trigger the download
