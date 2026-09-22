@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use tauri::Manager;
 
 const MAX_FILE_SIZE: u64 = 50 * 1024 * 1024; // 50 MB
 const BINARY_CHECK_SIZE: usize = 8192; // Check first 8KB
@@ -213,6 +214,76 @@ fn open_containing_folder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct TargetWindowInfo {
+    pub label: String,
+    pub rel_x: f64,
+    pub rel_y: f64,
+}
+
+#[tauri::command]
+fn find_window_at_point(
+    app: tauri::AppHandle,
+    screen_x: f64,
+    screen_y: f64,
+    exclude_label: String,
+) -> Option<TargetWindowInfo> {
+    for (label, win) in app.webview_windows() {
+        if label == exclude_label {
+            continue;
+        }
+        if let Ok(true) = win.is_minimized() {
+            continue;
+        }
+        if let Ok(false) = win.is_visible() {
+            continue;
+        }
+        if let (Ok(pos), Ok(size), Ok(scale)) = (win.outer_position(), win.outer_size(), win.scale_factor()) {
+            let logical_pos = pos.to_logical::<f64>(scale);
+            let logical_size = size.to_logical::<f64>(scale);
+
+            // Test in logical (CSS) pixels
+            if screen_x >= logical_pos.x
+                && screen_x <= (logical_pos.x + logical_size.width)
+                && screen_y >= logical_pos.y
+                && screen_y <= (logical_pos.y + logical_size.height)
+            {
+                return Some(TargetWindowInfo {
+                    label,
+                    rel_x: screen_x - logical_pos.x,
+                    rel_y: screen_y - logical_pos.y,
+                });
+            }
+
+            // Also test in physical monitor pixels in case screen_x was reported in physical units
+            let phys_x = pos.x as f64;
+            let phys_y = pos.y as f64;
+            let phys_w = size.width as f64;
+            let phys_h = size.height as f64;
+            if screen_x >= phys_x
+                && screen_x <= (phys_x + phys_w)
+                && screen_y >= phys_y
+                && screen_y <= (phys_y + phys_h)
+            {
+                return Some(TargetWindowInfo {
+                    label,
+                    rel_x: (screen_x - phys_x) / scale,
+                    rel_y: (screen_y - phys_y) / scale,
+                });
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn focus_window(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    if let Some(win) = app.get_webview_window(&label) {
+        win.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -226,7 +297,9 @@ pub fn run() {
             get_startup_args,
             reveal_file,
             open_new_window,
-            open_containing_folder
+            open_containing_folder,
+            find_window_at_point,
+            focus_window
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

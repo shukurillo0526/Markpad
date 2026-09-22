@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
   import { t } from './i18n.svelte';
 
   export interface Tab {
@@ -68,12 +70,13 @@
   });
 
   // ─── Smooth Pointer-Based Tab Drag, Cross-Window & Reordering ────────
-  const windowId = 'win_' + Math.random().toString(36).substring(2, 9);
+  let myWindowLabel = '';
   let tabChannel: BroadcastChannel | null = null;
   let remoteDropTargetIndex = $state<number>(-1);
   let remoteDraggingTab = $state<Tab | null>(null);
   let isHoveringRemote = $state(false);
-  let tabClaimResolve: ((val: boolean) => void) | null = null;
+  let activeTargetInfo: { label: string; rel_x: number; rel_y: number } | null = null;
+  let lastCheckTime = 0;
 
   let draggingTabId = $state<string | null>(null);
   let dragStartIndex = $state<number>(-1);
@@ -89,6 +92,12 @@
     if (e.button !== 0) return; // Only primary left click
     if ((e.target as HTMLElement).closest('.close-btn')) return;
 
+    // Synchronous setPointerCapture ensures drag always succeeds without permission/async issues
+    const el = e.currentTarget as HTMLElement;
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch (err) {}
+
     startX = e.clientX;
     startY = e.clientY;
     hasMoved = false;
@@ -97,10 +106,39 @@
     dragTargetIndex = index;
     isTearOff = false;
     isHoveringRemote = false;
+    activeTargetInfo = null;
+  }
 
-    const el = e.currentTarget as HTMLElement;
+  async function checkRemoteTarget(screenX: number, screenY: number) {
     try {
-      el.setPointerCapture(e.pointerId);
+      const target = await invoke<{ label: string; rel_x: number; rel_y: number } | null>(
+        'find_window_at_point',
+        {
+          screenX,
+          screenY,
+          excludeLabel: myWindowLabel
+        }
+      );
+      if (!draggingTabId) return;
+
+      activeTargetInfo = target;
+      if (target) {
+        isHoveringRemote = true;
+        tabChannel?.postMessage({
+          type: 'drag_over_remote',
+          sourceLabel: myWindowLabel,
+          targetLabel: target.label,
+          relX: target.rel_x,
+          relY: target.rel_y,
+          tab: tabs.find((t: Tab) => t.id === draggingTabId)
+        });
+      } else {
+        isHoveringRemote = false;
+        tabChannel?.postMessage({
+          type: 'drag_leave_remote',
+          sourceLabel: myWindowLabel
+        });
+      }
     } catch (err) {}
   }
 
@@ -126,22 +164,19 @@
       if (isOutside || dy > 45 || dy < -25) {
         isTearOff = true;
         dragTargetIndex = -1;
-        tabChannel?.postMessage({
-          type: 'drag_move',
-          sourceWin: windowId,
-          tabId: draggingTabId,
-          screenX: e.screenX,
-          screenY: e.screenY,
-          tab: tabs.find((t: Tab) => t.id === draggingTabId)
-        });
+
+        const now = performance.now();
+        if (now - lastCheckTime > 35) {
+          lastCheckTime = now;
+          checkRemoteTarget(e.screenX, e.screenY);
+        }
       } else {
         isTearOff = false;
-        if (isHoveringRemote) {
-          isHoveringRemote = false;
-        }
+        isHoveringRemote = false;
+        activeTargetInfo = null;
         tabChannel?.postMessage({
-          type: 'drag_end_or_cancel',
-          sourceWin: windowId
+          type: 'drag_leave_remote',
+          sourceLabel: myWindowLabel
         });
         if (scrollAreaEl) {
           const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
@@ -168,9 +203,13 @@
     const tearOff = isTearOff;
     const fromIdx = dragStartIndex;
     const toIdx = dragTargetIndex;
-    const hoveringRemote = isHoveringRemote;
     const finalScreenX = e.screenX;
     const finalScreenY = e.screenY;
+
+    const el = e.currentTarget as HTMLElement;
+    try {
+      el.releasePointerCapture(e.pointerId);
+    } catch (err) {}
 
     draggingTabId = null;
     dragStartIndex = -1;
@@ -179,32 +218,36 @@
     hasMoved = false;
     isHoveringRemote = false;
 
-    const el = e.currentTarget as HTMLElement;
-    try {
-      el.releasePointerCapture(e.pointerId);
-    } catch (err) {}
-
     if (wasMoved && tearOff) {
-      let wasClaimed = false;
-      if (hoveringRemote) {
-        const claimPromise = new Promise<boolean>((resolve) => {
-          tabClaimResolve = resolve;
-          setTimeout(() => resolve(false), 300);
-        });
+      let target = activeTargetInfo;
+      try {
+        const freshTarget = await invoke<{ label: string; rel_x: number; rel_y: number } | null>(
+          'find_window_at_point',
+          {
+            screenX: finalScreenX,
+            screenY: finalScreenY,
+            excludeLabel: myWindowLabel
+          }
+        );
+        if (freshTarget) {
+          target = freshTarget;
+        }
+      } catch (err) {}
 
+      if (target) {
+        // Dropped on an existing window!
         tabChannel?.postMessage({
-          type: 'drag_drop',
-          sourceWin: windowId,
-          tabId: tab.id,
-          screenX: finalScreenX,
-          screenY: finalScreenY,
+          type: 'drop_on_remote',
+          sourceLabel: myWindowLabel,
+          targetLabel: target.label,
+          relX: target.rel_x,
           tab: tab
         });
 
-        wasClaimed = await claimPromise;
-      }
+        try {
+          await invoke('focus_window', { label: target.label });
+        } catch (err) {}
 
-      if (wasClaimed) {
         if (onRemoveClaimedTab) {
           onRemoveClaimedTab(tab.id);
         } else if (onCloseTab) {
@@ -212,8 +255,8 @@
         }
       } else {
         tabChannel?.postMessage({
-          type: 'drag_end_or_cancel',
-          sourceWin: windowId
+          type: 'drag_leave_remote',
+          sourceLabel: myWindowLabel
         });
         if (onMoveToNewWindow) {
           onMoveToNewWindow(tab, finalScreenX, finalScreenY);
@@ -235,9 +278,10 @@
     isTearOff = false;
     hasMoved = false;
     isHoveringRemote = false;
+    activeTargetInfo = null;
     tabChannel?.postMessage({
-      type: 'drag_end_or_cancel',
-      sourceWin: windowId
+      type: 'drag_leave_remote',
+      sourceLabel: myWindowLabel
     });
   }
 
@@ -321,61 +365,57 @@
     closeContextMenu();
   }
 
-  onMount(() => {
+  onMount(async () => {
     window.addEventListener('click', handleWindowClick);
+
+    try {
+      myWindowLabel = getCurrentWindow().label;
+    } catch (e) {}
 
     if (typeof BroadcastChannel !== 'undefined') {
       tabChannel = new BroadcastChannel('markpad_cross_window_tabs');
       tabChannel.onmessage = (event) => {
         const data = event.data;
-        if (!data || data.sourceWin === windowId) return;
+        if (!data || data.sourceLabel === myWindowLabel) return;
 
-        if (data.type === 'drag_move') {
-          if (!scrollAreaEl) return;
-          const rect = scrollAreaEl.getBoundingClientRect();
-          const left = window.screenX + rect.left;
-          const right = window.screenX + rect.right;
-          const top = window.screenY + rect.top;
-          const bottom = window.screenY + rect.bottom + 25;
-
-          if (
-            data.screenX >= left &&
-            data.screenX <= right &&
-            data.screenY >= top - 25 &&
-            data.screenY <= bottom
-          ) {
+        if (data.type === 'drag_over_remote' && data.targetLabel === myWindowLabel) {
+          if (scrollAreaEl) {
             const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
             let targetIdx = tabs.length;
             for (let i = 0; i < tabNodes.length; i++) {
               const tRect = tabNodes[i].getBoundingClientRect();
-              const midX = window.screenX + tRect.left + tRect.width / 2;
-              if (data.screenX < midX) {
+              const midX = tRect.left + tRect.width / 2;
+              if (data.relX < midX) {
                 targetIdx = i;
                 break;
               }
             }
             remoteDropTargetIndex = targetIdx;
             remoteDraggingTab = data.tab;
-            tabChannel?.postMessage({
-              type: 'hover_ack',
-              sourceWin: windowId,
-              targetWin: data.sourceWin,
-              tabId: data.tabId
-            });
-          } else {
-            if (remoteDropTargetIndex !== -1) {
-              remoteDropTargetIndex = -1;
-              remoteDraggingTab = null;
-            }
           }
-        } else if (data.type === 'drag_end_or_cancel') {
+        } else if (data.type === 'drag_leave_remote') {
           remoteDropTargetIndex = -1;
           remoteDraggingTab = null;
-        } else if (data.type === 'drag_drop') {
-          if (remoteDropTargetIndex !== -1 && data.tab) {
-            const insertIdx = remoteDropTargetIndex;
-            remoteDropTargetIndex = -1;
-            remoteDraggingTab = null;
+        } else if (data.type === 'drop_on_remote' && data.targetLabel === myWindowLabel) {
+          let insertIdx = remoteDropTargetIndex;
+          if (insertIdx === -1 && scrollAreaEl && typeof data.relX === 'number') {
+            const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
+            insertIdx = tabs.length;
+            for (let i = 0; i < tabNodes.length; i++) {
+              const tRect = tabNodes[i].getBoundingClientRect();
+              const midX = tRect.left + tRect.width / 2;
+              if (data.relX < midX) {
+                insertIdx = i;
+                break;
+              }
+            }
+          }
+          if (insertIdx === -1) insertIdx = tabs.length;
+
+          remoteDropTargetIndex = -1;
+          remoteDraggingTab = null;
+
+          if (data.tab) {
             const droppedTab: Tab = {
               ...data.tab,
               id: 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)
@@ -383,20 +423,7 @@
             if (onImportRemoteTab) {
               onImportRemoteTab(droppedTab, insertIdx);
             }
-            tabChannel?.postMessage({
-              type: 'tab_claimed',
-              sourceWin: windowId,
-              targetWin: data.sourceWin,
-              tabId: data.tabId
-            });
           }
-        } else if (data.type === 'tab_claimed' && data.targetWin === windowId) {
-          if (tabClaimResolve) {
-            tabClaimResolve(true);
-            tabClaimResolve = null;
-          }
-        } else if (data.type === 'hover_ack' && data.targetWin === windowId) {
-          isHoveringRemote = true;
         }
       };
     }
