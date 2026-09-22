@@ -145,6 +145,22 @@ fn get_startup_args() -> Vec<String> {
     std::env::args().collect()
 }
 
+#[tauri::command]
+fn reveal_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(format!("/select,{}", path))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -155,7 +171,8 @@ pub fn run() {
             read_file_bytes,
             save_file_content,
             save_file_bytes,
-            get_startup_args
+            get_startup_args,
+            reveal_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -52,10 +52,10 @@
 
 <footer class="status-bar" aria-label="Status Bar">
   <div class="status-left">
-    {#if activeMode === 'pdf' || activeMode === 'office'}
-      <span class="status-item mode-badge readonly-mode">
-        <span class="dot readonly-dot"></span>
-        Read Only
+    {#if activeMode === 'pdf'}
+      <span class="status-item mode-badge pdf-mode">
+        <span class="dot pdf-dot"></span>
+        PDF Viewer
       </span>
     {:else}
       <span class="status-item mode-badge" class:dirty={isDirty}>
@@ -180,6 +180,11 @@
   .mode-badge.dirty {
     color: #f59e0b;
     background: rgba(245, 158, 11, 0.2);
+  }
+
+  .mode-badge.pdf-mode {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.15);
   }
 
   .dot {

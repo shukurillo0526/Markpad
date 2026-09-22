@@ -64,14 +64,21 @@
 
   let editorRef: { triggerSearch: () => void; triggerGotoLine: () => void } | undefined = $state();
   let officeViewerRef: {
-    saveDocument?: () => Promise<void>;
+    saveDocument?: (forceSaveAs?: boolean) => Promise<void>;
+    saveExcelDocument?: (forceSaveAs?: boolean) => Promise<void>;
+    saveWordDocument?: (forceSaveAs?: boolean) => Promise<void>;
+    triggerSearch?: () => void;
     getExportHtml?: () => string;
     getPlainText?: () => string;
   } | undefined = $state();
   let pdfViewerRef: {
     printDocument?: () => Promise<void>;
+    triggerSearch?: () => void;
+    saveAsCopy?: () => Promise<void>;
     getPlainText?: () => Promise<string>;
   } | undefined = $state();
+
+  let isDraggingFiles = $state(false);
 
   // ─── Derived ─────────────────────────────────────────────────────────
   let isDarkMode = $derived(themePreference === 'dark');
@@ -477,18 +484,32 @@
     }
   }
 
+  function triggerFind() {
+    if (activeTab?.mode === 'office') {
+      officeViewerRef?.triggerSearch?.();
+    } else if (activeTab?.mode === 'pdf') {
+      pdfViewerRef?.triggerSearch?.();
+    } else {
+      editorRef?.triggerSearch?.();
+    }
+  }
+
   async function saveActiveFile(forceSaveAs = false) {
     if (!activeTab) return;
 
     if (activeTab.mode === 'office') {
       if (officeViewerRef?.saveDocument) {
-        await officeViewerRef.saveDocument();
+        await officeViewerRef.saveDocument(forceSaveAs);
       }
       return;
     }
 
     if (activeTab.mode === 'pdf') {
-      showToast('PDF documents are read-only.', 'error');
+      if (pdfViewerRef?.saveAsCopy) {
+        await pdfViewerRef.saveAsCopy();
+      } else {
+        showToast('PDF documents are view-only.', 'error');
+      }
       return;
     }
 
@@ -585,7 +606,7 @@
       if (activeTab) handleCloseTab(activeTab.id);
     } else if (e.ctrlKey && e.key === 'f') {
       e.preventDefault();
-      editorRef?.triggerSearch();
+      triggerFind();
     } else if (e.ctrlKey && e.key === 'g') {
       e.preventDefault();
       editorRef?.triggerGotoLine();
@@ -720,6 +741,22 @@
           }
         }
       });
+
+      await appWindow.onDragDropEvent(async (event) => {
+        if (event.payload.type === 'enter' || event.payload.type === 'over') {
+          isDraggingFiles = true;
+        } else if (event.payload.type === 'leave') {
+          isDraggingFiles = false;
+        } else if (event.payload.type === 'drop') {
+          isDraggingFiles = false;
+          const paths = event.payload.paths;
+          if (paths && paths.length > 0) {
+            for (const path of paths) {
+              await loadFileIntoTab(path);
+            }
+          }
+        }
+      });
     } catch (e) {}
   });
 </script>
@@ -731,6 +768,16 @@
 </svelte:head>
 
 <main class="app-container" class:dark={isDarkMode}>
+  {#if isDraggingFiles}
+    <div class="drag-drop-overlay">
+      <div class="drag-drop-box">
+        <div class="drag-drop-icon">📂</div>
+        <div class="drag-drop-title">Drop Files to Open</div>
+        <div class="drag-drop-sub">Text, Markdown, PDF, Word (.docx), Excel (.xlsx), CSV, JSON, Configs, Logs</div>
+      </div>
+    </div>
+  {/if}
+
   <!-- ─── Title Bar ─────────────────────────────────────────────────── -->
   <div data-tauri-drag-region class="titlebar">
     <div class="menu">
@@ -739,7 +786,7 @@
       <button onclick={() => saveActiveFile(true)} title="Save As (Ctrl+Shift+S)">{t('save_as')}</button>
       <button onclick={() => (showExportModal = true)} title="Export PDF / HTML / Clipboard (Ctrl+E)">{t('export')}</button>
       <button onclick={() => (showRecentsModal = true)} title="Recent Files (Ctrl+R)">{t('recents')}</button>
-      <button onclick={() => editorRef?.triggerSearch()} title="Find / Replace (Ctrl+F)">{t('find')}</button>
+      <button onclick={triggerFind} title="Find / Replace (Ctrl+F)">{t('find')}</button>
       <button onclick={formatCurrentDocument} title="1-Click Auto Format Code">{t('format')}</button>
       <button onclick={() => (showLegalModal = true)} title="Legal & Publisher Information">{t('legal')}</button>
     </div>
@@ -826,6 +873,23 @@
     onTogglePin={handleTogglePin}
     onCopyPath={handleCopyPath}
     onSaveTab={() => saveActiveFile(false)}
+    onSaveAsTab={(tabId) => {
+      activeTabId = tabId;
+      saveActiveFile(true);
+    }}
+    onReorderTabs={(fromIndex, toIndex) => {
+      const reordered = [...tabs];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toIndex, 0, moved);
+      tabs = reordered;
+    }}
+    onRevealInExplorer={async (path) => {
+      try {
+        await invoke('reveal_file', { path });
+      } catch (e) {
+        showToast(`Failed to reveal file: ${e}`, 'error');
+      }
+    }}
   />
 
   <!-- ─── Editor / View Area ────────────────────────────────────────── -->
@@ -859,6 +923,14 @@
           filePath={activeTab.filePath || ''}
           onDirtyChange={(dirty) => {
             if (activeTab) activeTab.isDirty = dirty;
+          }}
+          onFilePathChange={(newPath) => {
+            if (activeTab) {
+              activeTab.filePath = newPath;
+              activeTab.title = newPath.split('\\').pop() || activeTab.title;
+              activeTab.extension = newPath.split('.').pop()?.toLowerCase() || '';
+              addToRecentFiles(newPath);
+            }
           }}
         />
       {:else}
@@ -1461,5 +1533,48 @@
     padding: 2px 6px;
     border-radius: 4px;
     color: #38bdf8;
+  }
+
+  /* Drag & Drop Window Overlay */
+  .drag-drop-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .drag-drop-box {
+    background: #1e293b;
+    border: 2px dashed #38bdf8;
+    border-radius: 16px;
+    padding: 40px 60px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  .drag-drop-icon {
+    font-size: 52px;
+    margin-bottom: 12px;
+  }
+
+  .drag-drop-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f8fafc;
+    margin-bottom: 8px;
+  }
+
+  .drag-drop-sub {
+    font-size: 13px;
+    color: #94a3b8;
   }
 </style>

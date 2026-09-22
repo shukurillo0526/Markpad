@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy, tick, untrack } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { save } from '@tauri-apps/plugin-dialog';
 
   let {
     bytes = null,
@@ -20,6 +22,24 @@
   let scale = $state(1.0);
   let rotation = $state(0);
   let renderTask: any = null;
+
+  // ─── Search & Toast State ──────────────────────────────────────────
+  let showPdfFind = $state(false);
+  let pdfFindQuery = $state('');
+  let pdfFindMatches = $state<Array<{ pageNum: number; count: number }>>([]);
+  let currentMatchPageIdx = $state(0);
+  let isSearching = $state(false);
+  let pdfFindInputEl: HTMLInputElement | null = $state(null);
+  let toastMsg = $state<string | null>(null);
+
+  function showNotification(msg: string) {
+    toastMsg = msg;
+    setTimeout(() => {
+      if (toastMsg === msg) toastMsg = null;
+    }, 3000);
+  }
+
+  let totalPdfMatches = $derived(pdfFindMatches.reduce((acc, m) => acc + m.count, 0));
 
   async function initPdf() {
     if (!bytes || bytes.length === 0) {
@@ -286,6 +306,106 @@
     return fullText;
   }
 
+  // ─── Find / Search Logic ───────────────────────────────────────────
+  async function performPdfFind() {
+    const q = pdfFindQuery.trim().toLowerCase();
+    if (!q || !pdfDoc) {
+      pdfFindMatches = [];
+      currentMatchPageIdx = 0;
+      return;
+    }
+
+    isSearching = true;
+    const matches: Array<{ pageNum: number; count: number }> = [];
+
+    try {
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str || '').join(' ').toLowerCase();
+
+        let count = 0;
+        let pos = 0;
+        while ((pos = pageText.indexOf(q, pos)) !== -1) {
+          count++;
+          pos += q.length;
+        }
+
+        if (count > 0) {
+          matches.push({ pageNum: i, count });
+        }
+      }
+
+      pdfFindMatches = matches;
+      if (matches.length > 0) {
+        currentMatchPageIdx = 0;
+        currentPage = matches[0].pageNum;
+        await renderCurrentPage();
+      }
+    } catch (err) {
+      console.error('PDF search error:', err);
+    } finally {
+      isSearching = false;
+    }
+  }
+
+  function nextPdfMatch() {
+    if (pdfFindMatches.length === 0) return;
+    currentMatchPageIdx = (currentMatchPageIdx + 1) % pdfFindMatches.length;
+    currentPage = pdfFindMatches[currentMatchPageIdx].pageNum;
+    renderCurrentPage();
+  }
+
+  function prevPdfMatch() {
+    if (pdfFindMatches.length === 0) return;
+    currentMatchPageIdx = (currentMatchPageIdx - 1 + pdfFindMatches.length) % pdfFindMatches.length;
+    currentPage = pdfFindMatches[currentMatchPageIdx].pageNum;
+    renderCurrentPage();
+  }
+
+  export function triggerSearch() {
+    showPdfFind = true;
+    tick().then(() => {
+      pdfFindInputEl?.focus();
+      pdfFindInputEl?.select();
+    });
+  }
+
+  function closePdfFind() {
+    showPdfFind = false;
+    pdfFindQuery = '';
+    pdfFindMatches = [];
+  }
+
+  export async function saveAsCopy() {
+    if (!bytes || bytes.length === 0) {
+      showNotification('Cannot save: No PDF data');
+      return;
+    }
+
+    try {
+      const defaultName = filePath ? filePath.split('\\').pop() || 'document.pdf' : 'document.pdf';
+      const selected = await save({
+        title: 'Save PDF Copy As',
+        defaultPath: defaultName,
+        filters: [
+          { name: 'PDF Document (*.pdf)', extensions: ['pdf'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      if (selected) {
+        const dataCopy = new Uint8Array(bytes);
+        await invoke('save_file_bytes', { path: selected as string, bytes: Array.from(dataCopy) });
+        const fileName = (selected as string).split('\\').pop() || 'document.pdf';
+        showNotification(`Saved PDF copy to ${fileName}`);
+      }
+    } catch (e) {
+      console.error('Failed to save PDF copy:', e);
+      showNotification(`Failed to save copy: ${e}`);
+    }
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'ArrowRight' || e.key === 'PageDown') {
       goToNextPage();
@@ -294,6 +414,12 @@
     } else if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
       e.preventDefault();
       printDocument();
+    } else if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      triggerSearch();
+    } else if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      saveAsCopy();
     }
   }
 
@@ -383,6 +509,12 @@
       <button class="tool-btn text-btn" onclick={printDocument} title="Print / Export PDF (Ctrl+P)" disabled={loading}>
         🖨️ Print
       </button>
+      <button class="tool-btn text-btn" onclick={triggerSearch} title="Find in PDF (Ctrl+F)" disabled={loading}>
+        🔍 Find
+      </button>
+      <button class="tool-btn text-btn" onclick={saveAsCopy} title="Save PDF Copy As (Ctrl+S)" disabled={loading}>
+        💾 Save Copy
+      </button>
     </div>
 
     <div class="toolbar-divider"></div>
@@ -391,6 +523,43 @@
       <span class="doc-badge">PDF 100% OFFLINE</span>
     </div>
   </div>
+
+  {#if toastMsg}
+    <div class="pdf-toast">{toastMsg}</div>
+  {/if}
+
+  {#if showPdfFind}
+    <div class="pdf-find-bar">
+      <input
+        bind:this={pdfFindInputEl}
+        type="text"
+        bind:value={pdfFindQuery}
+        oninput={performPdfFind}
+        onkeydown={(e) => {
+          if (e.key === 'Enter') {
+            if (e.shiftKey) prevPdfMatch();
+            else nextPdfMatch();
+          } else if (e.key === 'Escape') {
+            closePdfFind();
+          }
+        }}
+        placeholder="Find text in PDF..."
+        class="pdf-find-input"
+      />
+      <span class="pdf-find-count">
+        {#if isSearching}
+          Searching...
+        {:else if pdfFindMatches.length > 0}
+          Page {pdfFindMatches[currentMatchPageIdx]?.pageNum} ({currentMatchPageIdx + 1}/{pdfFindMatches.length} pages, {totalPdfMatches} matches)
+        {:else if pdfFindQuery}
+          0 matches
+        {/if}
+      </span>
+      <button class="pdf-find-btn" onclick={prevPdfMatch} title="Previous matching page (Shift+Enter)">▲</button>
+      <button class="pdf-find-btn" onclick={nextPdfMatch} title="Next matching page (Enter)">▼</button>
+      <button class="pdf-find-btn close-btn" onclick={closePdfFind} title="Close (Esc)">&times;</button>
+    </div>
+  {/if}
 
   <!-- Main View Area -->
   <div class="pdf-viewport" bind:this={viewportContainer}>
@@ -423,6 +592,96 @@
     background: var(--bg-color, #090d16);
     color: var(--text-color, #f8fafc);
     overflow: hidden;
+    position: relative;
+  }
+  .pdf-toast {
+    position: absolute;
+    top: 48px;
+    right: 20px;
+    background: #0284c7;
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  .pdf-find-bar {
+    position: absolute;
+    top: 48px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    z-index: 120;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .pdf-find-input {
+    background: #090d16;
+    border: 1px solid #334155;
+    color: #f8fafc;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    outline: none;
+    width: 180px;
+  }
+
+  .pdf-find-input:focus {
+    border-color: #38bdf8;
+  }
+
+  .pdf-find-count {
+    font-size: 11px;
+    color: #94a3b8;
+    min-width: 80px;
+    text-align: center;
+    user-select: none;
+    white-space: nowrap;
+  }
+
+  .pdf-find-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #cbd5e1;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+  }
+
+  .pdf-find-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #475569;
+    color: #ffffff;
+  }
+
+  .pdf-find-btn.close-btn {
+    font-size: 14px;
+    color: #94a3b8;
+    padding: 1px 7px;
+  }
+
+  .pdf-find-btn.close-btn:hover {
+    color: #ef4444;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .pdf-toolbar {

@@ -1,18 +1,21 @@
 <script lang="ts">
   import { onMount, tick, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { save } from '@tauri-apps/plugin-dialog';
   import { printToPdf, escapeHtml } from './export';
 
   let {
     bytes = null,
     extension = 'xlsx',
     filePath = '',
-    onDirtyChange = () => {}
+    onDirtyChange = () => {},
+    onFilePathChange = () => {}
   } = $props<{
     bytes: Uint8Array | null;
     extension?: string;
     filePath?: string;
     onDirtyChange?: (isDirty: boolean) => void;
+    onFilePathChange?: (newPath: string) => void;
   }>();
 
   let loading = $state(true);
@@ -28,6 +31,7 @@
   let searchQuery = $state<string>('');
   let currentPage = $state<number>(1);
   const pageSize = 100;
+  let excelSearchInputEl: HTMLInputElement | null = $state(null);
 
   // ─── Word Document State ──────────────────────────────────────────────
   let docxPageEl: HTMLDivElement | null = null;
@@ -35,6 +39,13 @@
   let wordCount = $state<number>(0);
   let wordTheme = $state<'paper' | 'dark'>('paper');
   let fontScale = $state<number>(100);
+
+  // ─── Word In-Document Find State ──────────────────────────────────────
+  let showWordFind = $state(false);
+  let wordFindQuery = $state('');
+  let wordFindMatches = $state<HTMLElement[]>([]);
+  let wordFindIndex = $state(0);
+  let wordFindInputEl: HTMLInputElement | null = $state(null);
 
   let ext = $derived(extension.toLowerCase());
   let lastLoadedBytes: Uint8Array | null = null;
@@ -167,9 +178,27 @@
     return filteredRows.slice(start, end);
   });
 
-  export async function saveExcelDocument() {
-    if (!workbookInstance || !filePath) {
-      showNotification('Cannot save: No file path');
+  async function promptSaveAs(defaultExt: string, defaultName: string): Promise<string | null> {
+    try {
+      const filterName = defaultExt === 'xlsx' ? 'Excel Workbook (*.xlsx)' : 'Word Document (*.docx)';
+      const selected = await save({
+        title: 'Save As',
+        defaultPath: filePath || defaultName,
+        filters: [
+          { name: filterName, extensions: [defaultExt] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+      return selected as string | null;
+    } catch (err) {
+      console.error('Save dialog error:', err);
+      return null;
+    }
+  }
+
+  export async function saveExcelDocument(forceSaveAs = false) {
+    if (!workbookInstance) {
+      showNotification('Cannot save: No active spreadsheet');
       return;
     }
 
@@ -184,9 +213,36 @@
       const outArray = XLSX.write(workbookInstance, { bookType: 'xlsx', type: 'array' });
       const uint8 = new Uint8Array(outArray);
 
-      await invoke('save_file_bytes', { path: filePath, bytes: Array.from(uint8) });
+      let targetPath = filePath;
+      if (forceSaveAs || !targetPath) {
+        const chosen = await promptSaveAs('xlsx', 'Spreadsheet.xlsx');
+        if (!chosen) {
+          saving = false;
+          return;
+        }
+        targetPath = chosen;
+      }
+
+      try {
+        await invoke('save_file_bytes', { path: targetPath, bytes: Array.from(uint8) });
+      } catch (writeErr: any) {
+        console.warn('Direct save failed, attempting Save As dialog:', writeErr);
+        showNotification('Permission denied on original path. Please choose a save location.');
+        const chosen = await promptSaveAs('xlsx', targetPath.split('\\').pop() || 'Spreadsheet.xlsx');
+        if (!chosen) {
+          saving = false;
+          return;
+        }
+        targetPath = chosen;
+        await invoke('save_file_bytes', { path: targetPath, bytes: Array.from(uint8) });
+      }
+
+      if (targetPath !== filePath) {
+        onFilePathChange(targetPath);
+      }
       onDirtyChange(false);
-      showNotification('Spreadsheet saved successfully');
+      const fileName = targetPath.split('\\').pop() || 'Spreadsheet';
+      showNotification(`Spreadsheet saved to ${fileName}`);
     } catch (e) {
       console.error('Save error:', e);
       showNotification(`Failed to save: ${e}`);
@@ -238,24 +294,192 @@
     }
   }
 
-  export async function saveWordDocument() {
-    if (!docxPageEl || !filePath) {
-      showNotification('Cannot save: No file path');
+  function handleDocxDrop(e: DragEvent) {
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+
+    const imageFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith('image/')) {
+        imageFiles.push(file);
+      }
+    }
+
+    if (imageFiles.length === 0) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    for (const imgFile of imageFiles) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        if (docxPageEl) {
+          docxPageEl.focus();
+          document.execCommand('insertImage', false, dataUrl);
+          handleDocxInput();
+          showNotification(`Inserted image: ${imgFile.name}`);
+        }
+      };
+      reader.readAsDataURL(imgFile);
+    }
+  }
+
+  function clearWordFindHighlights() {
+    if (!docxPageEl) return;
+    const marks = docxPageEl.querySelectorAll('mark.docx-find-match');
+    marks.forEach((mark) => {
+      const parent = mark.parentNode;
+      if (parent) {
+        while (mark.firstChild) {
+          parent.insertBefore(mark.firstChild, mark);
+        }
+        parent.removeChild(mark);
+        parent.normalize();
+      }
+    });
+    wordFindMatches = [];
+    wordFindIndex = 0;
+  }
+
+  function performWordFind() {
+    clearWordFindHighlights();
+    const q = wordFindQuery.trim();
+    if (!q || !docxPageEl) return;
+
+    const walker = document.createTreeWalker(docxPageEl, NodeFilter.SHOW_TEXT);
+    const textNodes: Text[] = [];
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      if (node.nodeValue && node.nodeValue.toLowerCase().includes(q.toLowerCase())) {
+        textNodes.push(node as Text);
+      }
+    }
+
+    const queryLower = q.toLowerCase();
+    const matchedMarks: HTMLElement[] = [];
+
+    for (const textNode of textNodes) {
+      let currentTextNode = textNode;
+      let text = currentTextNode.nodeValue || '';
+      let lowerText = text.toLowerCase();
+      let idx = lowerText.indexOf(queryLower);
+
+      while (idx !== -1) {
+        const matchNode = currentTextNode.splitText(idx);
+        const remainingNode = matchNode.splitText(q.length);
+
+        const mark = document.createElement('mark');
+        mark.className = 'docx-find-match';
+        mark.textContent = matchNode.nodeValue;
+
+        matchNode.parentNode?.replaceChild(mark, matchNode);
+        matchedMarks.push(mark);
+
+        currentTextNode = remainingNode;
+        text = currentTextNode.nodeValue || '';
+        lowerText = text.toLowerCase();
+        idx = lowerText.indexOf(queryLower);
+      }
+    }
+
+    wordFindMatches = matchedMarks;
+    if (matchedMarks.length > 0) {
+      wordFindIndex = 0;
+      highlightActiveWordMatch();
+    } else {
+      wordFindIndex = -1;
+    }
+  }
+
+  function highlightActiveWordMatch() {
+    wordFindMatches.forEach((m, i) => {
+      m.classList.toggle('active', i === wordFindIndex);
+    });
+    if (wordFindIndex >= 0 && wordFindMatches[wordFindIndex]) {
+      wordFindMatches[wordFindIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function nextWordMatch() {
+    if (wordFindMatches.length === 0) return;
+    wordFindIndex = (wordFindIndex + 1) % wordFindMatches.length;
+    highlightActiveWordMatch();
+  }
+
+  function prevWordMatch() {
+    if (wordFindMatches.length === 0) return;
+    wordFindIndex = (wordFindIndex - 1 + wordFindMatches.length) % wordFindMatches.length;
+    highlightActiveWordMatch();
+  }
+
+  function closeWordFind() {
+    showWordFind = false;
+    wordFindQuery = '';
+    clearWordFindHighlights();
+  }
+
+  export function triggerSearch() {
+    if (ext === 'xlsx' || ext === 'xls') {
+      excelSearchInputEl?.focus();
+      excelSearchInputEl?.select();
+    } else if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
+      showWordFind = true;
+      tick().then(() => {
+        wordFindInputEl?.focus();
+        wordFindInputEl?.select();
+      });
+    }
+  }
+
+  export async function saveWordDocument(forceSaveAs = false) {
+    if (!docxPageEl) {
+      showNotification('Cannot save: No document content');
       return;
     }
 
     saving = true;
     try {
+      clearWordFindHighlights();
+
       const currentHtml = docxPageEl.innerHTML;
       const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${currentHtml}</body></html>`;
       const { asBlob } = await import('html-docx-js-typescript');
       const docxResult: any = await asBlob(fullHtml);
       const uint8 = new Uint8Array(docxResult.buffer ? docxResult.buffer : docxResult);
 
-      await invoke('save_file_bytes', { path: filePath, bytes: Array.from(uint8) });
+      let targetPath = filePath;
+      if (forceSaveAs || !targetPath) {
+        const chosen = await promptSaveAs('docx', 'Document.docx');
+        if (!chosen) {
+          saving = false;
+          return;
+        }
+        targetPath = chosen;
+      }
+
+      try {
+        await invoke('save_file_bytes', { path: targetPath, bytes: Array.from(uint8) });
+      } catch (writeErr: any) {
+        console.warn('Direct save failed, attempting Save As dialog:', writeErr);
+        showNotification('Permission denied on original path. Please choose a save location.');
+        const chosen = await promptSaveAs('docx', targetPath.split('\\').pop() || 'Document.docx');
+        if (!chosen) {
+          saving = false;
+          return;
+        }
+        targetPath = chosen;
+        await invoke('save_file_bytes', { path: targetPath, bytes: Array.from(uint8) });
+      }
+
+      if (targetPath !== filePath) {
+        onFilePathChange(targetPath);
+      }
       docxHtml = currentHtml;
       onDirtyChange(false);
-      showNotification('Word document saved successfully');
+      const fileName = targetPath.split('\\').pop() || 'Document';
+      showNotification(`Word document saved to ${fileName}`);
     } catch (e) {
       console.error('Word save error:', e);
       showNotification(`Failed to save: ${e}`);
@@ -351,20 +575,24 @@
     fontScale = 100;
   }
 
-  export async function saveDocument() {
+  export async function saveDocument(forceSaveAs = false) {
     if (ext === 'xlsx' || ext === 'xls') {
-      await saveExcelDocument();
+      await saveExcelDocument(forceSaveAs);
     } else if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
-      await saveWordDocument();
+      await saveWordDocument(forceSaveAs);
     }
   }
 
-  // Handle Ctrl+S for in-place document saving
+  // Handle keyboard shortcuts
   function handleKeyDown(e: KeyboardEvent) {
     if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
       e.preventDefault();
       e.stopPropagation();
-      saveDocument();
+      saveDocument(e.shiftKey);
+    } else if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerSearch();
     }
   }
 
@@ -423,9 +651,10 @@
 
         <div class="search-box">
           <input
+            bind:this={excelSearchInputEl}
             type="text"
             bind:value={searchQuery}
-            placeholder="Search cells..."
+            placeholder="Search cells (Ctrl+F)..."
             class="search-input"
           />
           {#if searchQuery}
@@ -437,7 +666,7 @@
       <div class="toolbar-group end-group">
         <button
           class="save-btn"
-          onclick={saveExcelDocument}
+          onclick={() => saveExcelDocument(false)}
           disabled={saving}
           title="Save Spreadsheet (Ctrl+S)"
         >
@@ -526,7 +755,7 @@
         <span class="office-badge word-badge">📘 WORD EDITOR</span>
         <button
           class="save-btn"
-          onclick={saveWordDocument}
+          onclick={() => saveWordDocument(false)}
           disabled={saving}
           title="Save Document (Ctrl+S)"
         >
@@ -572,6 +801,9 @@
           <button class="tool-btn font-btn" onclick={increaseFontSize} title="Larger Font">A+</button>
         </div>
 
+        <button class="tool-btn" onclick={triggerSearch} title="Find in Document (Ctrl+F)">
+          🔍 Find
+        </button>
         <button class="tool-btn" onclick={copyDocxText} title="Copy Plain Text">
           📋 Copy
         </button>
@@ -581,6 +813,37 @@
       </div>
     </div>
 
+    {#if showWordFind}
+      <div class="word-find-bar">
+        <input
+          bind:this={wordFindInputEl}
+          type="text"
+          bind:value={wordFindQuery}
+          oninput={performWordFind}
+          onkeydown={(e) => {
+            if (e.key === 'Enter') {
+              if (e.shiftKey) prevWordMatch();
+              else nextWordMatch();
+            } else if (e.key === 'Escape') {
+              closeWordFind();
+            }
+          }}
+          placeholder="Find in document..."
+          class="word-find-input"
+        />
+        <span class="word-find-count">
+          {#if wordFindMatches.length > 0}
+            {wordFindIndex + 1} of {wordFindMatches.length}
+          {:else if wordFindQuery}
+            0 matches
+          {/if}
+        </span>
+        <button class="word-find-nav-btn" onclick={prevWordMatch} title="Previous match (Shift+Enter)">▲</button>
+        <button class="word-find-nav-btn" onclick={nextWordMatch} title="Next match (Enter)">▼</button>
+        <button class="word-find-nav-btn close-btn" onclick={closeWordFind} title="Close (Esc)">&times;</button>
+      </div>
+    {/if}
+
     <!-- Word Document Flowing Scrollable View -->
     <div class="docx-wrapper" class:dark-paper={wordTheme === 'dark'}>
       <div
@@ -589,7 +852,12 @@
         class:dark-page={wordTheme === 'dark'}
         style="font-size: {fontScale}%"
         contenteditable="true"
+        role="textbox"
+        aria-multiline="true"
+        tabindex="0"
         oninput={handleDocxInput}
+        ondragover={(e) => e.preventDefault()}
+        ondrop={handleDocxDrop}
       ></div>
     </div>
   {/if}
@@ -620,6 +888,88 @@
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     z-index: 100;
     animation: fadeIn 0.2s ease-out;
+  }
+
+  .word-find-bar {
+    position: absolute;
+    top: 50px;
+    right: 24px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    z-index: 120;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .word-find-input {
+    background: #090d16;
+    border: 1px solid #334155;
+    color: #f8fafc;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    outline: none;
+    width: 190px;
+  }
+
+  .word-find-input:focus {
+    border-color: #38bdf8;
+  }
+
+  .word-find-count {
+    font-size: 11px;
+    color: #94a3b8;
+    min-width: 65px;
+    text-align: center;
+    user-select: none;
+  }
+
+  .word-find-nav-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: #cbd5e1;
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+  }
+
+  .word-find-nav-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: #475569;
+    color: #ffffff;
+  }
+
+  .word-find-nav-btn.close-btn {
+    font-size: 14px;
+    color: #94a3b8;
+    padding: 1px 7px;
+  }
+
+  .word-find-nav-btn.close-btn:hover {
+    color: #ef4444;
+  }
+
+  :global(mark.docx-find-match) {
+    background-color: #fef08a !important;
+    color: #0f172a !important;
+    border-radius: 2px;
+    padding: 1px 0;
+  }
+
+  :global(mark.docx-find-match.active) {
+    background-color: #f97316 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 0 1px #ea580c;
   }
 
   @keyframes fadeIn {

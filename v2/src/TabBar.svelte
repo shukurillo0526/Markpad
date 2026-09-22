@@ -28,7 +28,10 @@
     onCloseAll,
     onTogglePin,
     onCopyPath,
-    onSaveTab
+    onSaveTab,
+    onSaveAsTab,
+    onRevealInExplorer,
+    onReorderTabs
   } = $props<{
     tabs: Tab[];
     activeTabId: string;
@@ -40,6 +43,9 @@
     onTogglePin?: (id: string) => void;
     onCopyPath?: (id: string) => void;
     onSaveTab?: (id: string) => void;
+    onSaveAsTab?: (id: string) => void;
+    onRevealInExplorer?: (path: string) => void;
+    onReorderTabs?: (fromIndex: number, toIndex: number) => void;
   }>();
 
   let contextMenu = $state<{ visible: boolean; x: number; y: number; tabId: string | null }>({
@@ -48,6 +54,40 @@
     y: 0,
     tabId: null
   });
+
+  let draggedTabId = $state<string | null>(null);
+  let dragOverTabId = $state<string | null>(null);
+
+  function handleDragStart(e: DragEvent, id: string) {
+    draggedTabId = id;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', id);
+    }
+  }
+
+  function handleDragOver(e: DragEvent, id: string) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    if (draggedTabId && draggedTabId !== id) {
+      dragOverTabId = id;
+    }
+  }
+
+  function handleDrop(e: DragEvent, targetId: string) {
+    e.preventDefault();
+    if (!draggedTabId || draggedTabId === targetId) {
+      dragOverTabId = null;
+      return;
+    }
+    const fromIdx = tabs.findIndex((t: Tab) => t.id === draggedTabId);
+    const toIdx = tabs.findIndex((t: Tab) => t.id === targetId);
+    if (fromIdx !== -1 && toIdx !== -1 && onReorderTabs) {
+      onReorderTabs(fromIdx, toIdx);
+    }
+    draggedTabId = null;
+    dragOverTabId = null;
+  }
 
   function getExtBadge(ext: string): { label: string; color: string } {
     const e = ext.toLowerCase();
@@ -137,6 +177,12 @@
         class:active={tab.id === activeTabId}
         class:dirty={tab.isDirty}
         class:pinned={tab.pinned}
+        class:drag-over={dragOverTabId === tab.id}
+        draggable="true"
+        ondragstart={(e) => handleDragStart(e, tab.id)}
+        ondragover={(e) => handleDragOver(e, tab.id)}
+        ondragleave={() => { if (dragOverTabId === tab.id) dragOverTabId = null; }}
+        ondrop={(e) => handleDrop(e, tab.id)}
         onclick={(e) => handleTabClick(e, tab.id)}
         oncontextmenu={(e) => handleContextMenu(e, tab.id)}
         title={tab.filePath || tab.title}
@@ -232,6 +278,16 @@
       <button
         class="menu-item"
         onclick={() => {
+          if (ctxTab?.filePath && onRevealInExplorer) onRevealInExplorer(ctxTab.filePath);
+          closeContextMenu();
+        }}
+      >
+        Reveal in File Explorer
+      </button>
+
+      <button
+        class="menu-item"
+        onclick={() => {
           if (contextMenu.tabId && onCopyPath) onCopyPath(contextMenu.tabId);
           closeContextMenu();
         }}
@@ -252,10 +308,25 @@
       Save
       <span class="shortcut">Ctrl+S</span>
     </button>
+
+    <button
+      class="menu-item"
+      onclick={() => {
+        if (contextMenu.tabId && onSaveAsTab) onSaveAsTab(contextMenu.tabId);
+        closeContextMenu();
+      }}
+    >
+      Save As...
+      <span class="shortcut">Ctrl+Shift+S</span>
+    </button>
   </div>
 {/if}
 
 <style>
+  .tab-item.drag-over {
+    border-left: 3px solid #38bdf8 !important;
+    background: rgba(56, 189, 248, 0.15) !important;
+  }
   .tab-bar-container {
     display: flex;
     align-items: center;
