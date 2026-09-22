@@ -164,8 +164,6 @@ fn reveal_file(path: String) -> Result<(), String> {
 #[tauri::command]
 async fn open_new_window(
     app: tauri::AppHandle,
-    file_path: Option<String>,
-    transfer_id: Option<String>,
     x: Option<f64>,
     y: Option<f64>,
 ) -> Result<(), String> {
@@ -175,25 +173,10 @@ async fn open_new_window(
         .as_millis();
     let label = format!("window-{}", timestamp);
 
-    let mut hash_fragment = String::new();
-    if let Some(ref tid) = transfer_id {
-        hash_fragment = format!("#transfer_id={}", tid);
-    } else if let Some(ref path) = file_path {
-        if !path.is_empty() {
-            hash_fragment = format!("#open={}", urlencoding::encode(path));
-        }
-    }
-
-    let url_str = if hash_fragment.is_empty() {
-        "index.html".to_string()
-    } else {
-        format!("index.html{}", hash_fragment)
-    };
-
     let mut builder = tauri::WebviewWindowBuilder::new(
         &app,
         &label,
-        tauri::WebviewUrl::App(url_str.into()),
+        tauri::WebviewUrl::App("index.html".into()),
     )
     .title("Markpad Native")
     .inner_size(1000.0, 700.0)
@@ -204,22 +187,8 @@ async fn open_new_window(
         builder = builder.position(px, py);
     }
 
-    match builder.build() {
-        Ok(_) => Ok(()),
-        Err(e) => {
-            // Fallback: spawn executable
-            if let Ok(current_exe) = std::env::current_exe() {
-                let mut cmd = std::process::Command::new(current_exe);
-                if let Some(ref path) = file_path {
-                    if !path.is_empty() {
-                        cmd.arg(path);
-                    }
-                }
-                let _ = cmd.spawn();
-            }
-            Err(format!("Window build notice: {}", e))
-        }
-    }
+    builder.build().map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]

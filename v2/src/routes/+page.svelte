@@ -491,20 +491,23 @@
     screenY?: number
   ) {
     try {
-      let transferId: string | null = null;
-      if (tab) {
-        transferId = 'transfer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+      if (tab || filePath) {
+        const transferId = 'transfer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
         try {
           localStorage.setItem('markpad_transfer_' + transferId, JSON.stringify({
-            title: tab.title,
-            filePath: tab.filePath,
-            content: tab.content,
-            originalContent: tab.originalContent,
-            isDirty: tab.isDirty,
-            extension: tab.extension,
-            lineEnding: tab.lineEnding,
-            encoding: tab.encoding,
-            mode: tab.mode
+            timestamp: Date.now(),
+            tab: tab ? {
+              title: tab.title,
+              filePath: tab.filePath,
+              content: tab.content,
+              originalContent: tab.originalContent,
+              isDirty: tab.isDirty,
+              extension: tab.extension,
+              lineEnding: tab.lineEnding,
+              encoding: tab.encoding,
+              mode: tab.mode
+            } : null,
+            filePath: filePath || (tab ? tab.filePath : null)
           }));
         } catch (e) {
           console.error('Failed to store transfer data in localStorage', e);
@@ -512,8 +515,6 @@
       }
 
       await invoke('open_new_window', {
-        filePath: filePath || (tab ? tab.filePath : null),
-        transferId,
         x: screenX ? Math.max(0, screenX - 100) : null,
         y: screenY ? Math.max(0, screenY - 20) : null
       });
@@ -821,43 +822,48 @@
     }
 
     try {
-      // Parse hash fragment: index.html#transfer_id=xxx or index.html#open=encoded_path
-      const hash = window.location.hash.replace(/^#/, '');
-      const hashParams = new URLSearchParams(hash);
-      const transferId = hashParams.get('transfer_id');
-      const openPath = hashParams.get('open');
-
-      // Clean hash from URL after reading
-      if (hash) {
-        history.replaceState(null, '', window.location.pathname);
+      let latestTransfer: any = null;
+      let latestKey: string | null = null;
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('markpad_transfer_')) {
+          try {
+            const raw = localStorage.getItem(key);
+            if (raw) {
+              const item = JSON.parse(raw);
+              if (item && item.timestamp && Date.now() - item.timestamp < 15000) {
+                if (!latestTransfer || item.timestamp > latestTransfer.timestamp) {
+                  latestTransfer = item;
+                  latestKey = key;
+                }
+              } else {
+                localStorage.removeItem(key);
+              }
+            }
+          } catch (e) {}
+        }
       }
 
-      if (transferId) {
-        const dataStr = localStorage.getItem('markpad_transfer_' + transferId);
-        if (dataStr) {
-          try {
-            const data = JSON.parse(dataStr);
-            localStorage.removeItem('markpad_transfer_' + transferId);
-            tabs = [{
-              id: 'tab_' + Date.now(),
-              title: data.title || 'Untitled',
-              filePath: data.filePath || null,
-              content: data.content || '',
-              originalContent: data.originalContent || '',
-              isDirty: data.isDirty || false,
-              extension: data.extension || 'txt',
-              cursorPos: { line: 1, col: 1, selectionLen: 0 },
-              lineEnding: data.lineEnding || 'LF',
-              encoding: data.encoding || 'UTF-8',
-              mode: data.mode || 'editor'
-            }];
-            activeTabId = tabs[0].id;
-          } catch (err) {
-            console.error('Failed to parse transfer data', err);
-          }
+      if (latestKey && latestTransfer) {
+        localStorage.removeItem(latestKey);
+        if (latestTransfer.tab) {
+          tabs = [{
+            id: 'tab_' + Date.now(),
+            title: latestTransfer.tab.title || 'Untitled',
+            filePath: latestTransfer.tab.filePath || null,
+            content: latestTransfer.tab.content || '',
+            originalContent: latestTransfer.tab.originalContent || '',
+            isDirty: latestTransfer.tab.isDirty || false,
+            extension: latestTransfer.tab.extension || 'txt',
+            cursorPos: { line: 1, col: 1, selectionLen: 0 },
+            lineEnding: latestTransfer.tab.lineEnding || 'LF',
+            encoding: latestTransfer.tab.encoding || 'UTF-8',
+            mode: latestTransfer.tab.mode || 'editor'
+          }];
+          activeTabId = tabs[0].id;
+        } else if (latestTransfer.filePath) {
+          await loadFileIntoTab(latestTransfer.filePath);
         }
-      } else if (openPath) {
-        await loadFileIntoTab(decodeURIComponent(openPath));
       } else {
         const args = await invoke<string[]>('get_startup_args');
         if (args && args.length > 1) {
@@ -868,7 +874,7 @@
         }
       }
     } catch (e) {
-      console.error('Failed to parse startup arguments', e);
+      console.error('Failed to parse transfer / startup arguments', e);
     }
 
     try {
