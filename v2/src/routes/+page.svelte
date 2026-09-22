@@ -61,6 +61,16 @@
   let showLegalModal = $state(false);
   let showRecentsModal = $state(false);
   let showExportModal = $state(false);
+  let showFeedbackModal = $state(false);
+
+  async function openExternalUrl(url: string) {
+    try {
+      const { openUrl } = await import('@tauri-apps/plugin-opener');
+      await openUrl(url);
+    } catch (e) {
+      window.open(url, '_blank');
+    }
+  }
 
   let editorRef: { triggerSearch: () => void; triggerGotoLine: () => void } | undefined = $state();
   let officeViewerRef: {
@@ -1167,6 +1177,7 @@
     onToggleInvisibles={toggleInvisibles}
     onToggleLineEnding={toggleLineEnding}
     onToggleEncoding={() => showToast('Encoding: UTF-8 (Unicode)', 'success')}
+    onOpenFeedback={() => (showFeedbackModal = true)}
   />
 
   <!-- ─── Export Engine Modal ────────────────────────────────────────── -->
@@ -1339,6 +1350,83 @@
           <p class="legal-text">
             {t('legal_desc')}
           </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ─── Feedback & Support Modal ────────────────────────────────────── -->
+  {#if showFeedbackModal}
+    <div
+      class="modal-backdrop"
+      onclick={() => (showFeedbackModal = false)}
+      onkeydown={(e) => e.key === 'Escape' && (showFeedbackModal = false)}
+      role="button"
+      tabindex="0"
+    >
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <div
+        class="modal-box feedback-modal-box"
+        onclick={(e) => e.stopPropagation()}
+        onkeydown={(e) => e.stopPropagation()}
+        role="document"
+        tabindex="-1"
+      >
+        <div class="modal-header">
+          <h2>💖 Support Markpad & Give Feedback</h2>
+          <button class="modal-close" onclick={() => (showFeedbackModal = false)}>&times;</button>
+        </div>
+        <div class="modal-body feedback-modal-body">
+          <p class="feedback-intro">
+            Markpad is a <strong>totally free tool</strong> with zero ads and zero paywalls. If you want to support our journey, donate as you like, or give us your valuable opinions, ratings, and feedback!
+          </p>
+
+          <div class="feedback-options">
+            <button
+              class="feedback-card feedback-card-survey"
+              onclick={() => {
+                showFeedbackModal = false;
+                openExternalUrl('https://docs.google.com/forms/d/e/1FAIpQLSekDrj5FJL30WB11xkq4FUtnseJFCsp5yQda54XHllHuN9xnQ/viewform');
+              }}
+            >
+              <div class="fb-icon">💬</div>
+              <div class="fb-details">
+                <div class="fb-title">Give Feedback & Rate Us</div>
+                <div class="fb-desc">Fill out our quick 2-minute Google Form survey</div>
+              </div>
+              <div class="fb-arrow">↗</div>
+            </button>
+
+            <button
+              class="feedback-card feedback-card-donate"
+              onclick={() => {
+                showFeedbackModal = false;
+                openExternalUrl('https://github.com/sponsors/shukurillo0526');
+              }}
+            >
+              <div class="fb-icon">💖</div>
+              <div class="fb-details">
+                <div class="fb-title">Donate / Sponsor</div>
+                <div class="fb-desc">Support ongoing development and improvements as you like</div>
+              </div>
+              <div class="fb-arrow">↗</div>
+            </button>
+
+            <button
+              class="feedback-card feedback-card-github"
+              onclick={() => {
+                showFeedbackModal = false;
+                openExternalUrl('https://github.com/shukurillo0526/Markpad');
+              }}
+            >
+              <div class="fb-icon">⭐</div>
+              <div class="fb-details">
+                <div class="fb-title">Star on GitHub</div>
+                <div class="fb-desc">Help more developers discover Markpad</div>
+              </div>
+              <div class="fb-arrow">↗</div>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1660,6 +1748,82 @@
   .legal-text {
     color: #94a3b8;
     font-style: italic;
+  }
+
+  /* Feedback & Support Modal */
+  .feedback-modal-box {
+    width: 480px;
+  }
+
+  .feedback-intro {
+    color: var(--text-color);
+    margin-top: 0;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .feedback-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .feedback-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    background: var(--button-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    color: var(--text-color);
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  }
+
+  .feedback-card:hover {
+    background: var(--border-color);
+    transform: translateY(-1px);
+  }
+
+  .feedback-card-survey:hover {
+    border-color: #10b981;
+  }
+
+  .feedback-card-donate:hover {
+    border-color: #ec4899;
+  }
+
+  .feedback-card-github:hover {
+    border-color: #eab308;
+  }
+
+  .fb-icon {
+    font-size: 22px;
+  }
+
+  .fb-details {
+    flex: 1;
+  }
+
+  .fb-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-color);
+  }
+
+  .fb-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+
+  .fb-arrow {
+    font-size: 16px;
+    color: #94a3b8;
   }
 
   /* Toasts */

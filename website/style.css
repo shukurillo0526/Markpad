@@ -475,6 +475,98 @@ footer {
   margin-top: 0.5rem;
 }
 
+/* Community Support & Feedback */
+.support-feedback {
+  padding: 3rem 0 5rem;
+}
+.support-card {
+  background: radial-gradient(circle at 50% 0%, rgba(139, 92, 246, 0.15) 0%, rgba(20, 20, 28, 0.7) 100%);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  padding: 3.5rem 2.5rem;
+  text-align: center;
+  backdrop-filter: blur(24px);
+  position: relative;
+  overflow: hidden;
+}
+.support-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(167, 139, 250, 0.6), transparent);
+}
+.support-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem;
+  background: rgba(236, 72, 153, 0.12);
+  border: 1px solid rgba(236, 72, 153, 0.3);
+  border-radius: 9999px;
+  color: #f472b6;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+}
+.support-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.support-text {
+  color: var(--text-muted);
+  max-width: 680px;
+  margin: 0 auto 2.2rem;
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+.support-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.btn-feedback {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.3);
+  border: none;
+}
+.btn-feedback:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.45);
+  color: #ffffff;
+}
+.btn-donate {
+  background: linear-gradient(135deg, #ec4899 0%, #db2777 100%);
+  color: #ffffff !important;
+  box-shadow: 0 4px 20px rgba(236, 72, 153, 0.3);
+  border: none;
+}
+.btn-donate:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(236, 72, 153, 0.45);
+  color: #ffffff;
+}
+.btn-github-star {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f8fafc !important;
+}
+.btn-github-star:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+
 /* Bottom CTA */
 .bottom-cta {
   text-align: center;

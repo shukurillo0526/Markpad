@@ -19,7 +19,8 @@
     onToggleLineEnding = () => {},
     onToggleWordWrap = () => {},
     onToggleInvisibles = () => {},
-    onToggleEncoding = () => {}
+    onToggleEncoding = () => {},
+    onOpenFeedback = () => {}
   } = $props<{
     line?: number;
     col?: number;
@@ -39,6 +40,7 @@
     onToggleWordWrap?: () => void;
     onToggleInvisibles?: () => void;
     onToggleEncoding?: () => void;
+    onOpenFeedback?: () => void;
   }>();
 
   function formatBytes(bytes: number): string {
@@ -137,10 +139,29 @@
     {/if}
 
     <span class="status-item language-tag">{language}</span>
+
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <span
+      class="status-item clickable feedback-badge"
+      onclick={onOpenFeedback}
+      title="Markpad is a free tool — donate or give feedback!"
+    >
+      💖 Feedback
+    </span>
   </div>
 </footer>
 
 <style>
+  .feedback-badge {
+    color: #ec4899 !important;
+    font-weight: 600;
+  }
+  .feedback-badge:hover {
+    background: rgba(236, 72, 153, 0.2) !important;
+    color: #f472b6 !important;
+  }
+
   .status-bar {
     display: flex;
     align-items: center;
