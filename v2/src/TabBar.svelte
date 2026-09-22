@@ -74,8 +74,10 @@
   let tabChannel: BroadcastChannel | null = null;
   let remoteDropTargetIndex = $state<number>(-1);
   let remoteDraggingTab = $state<Tab | null>(null);
+  let remoteCursorX = $state<number>(0);
+  let remoteCursorY = $state<number>(0);
   let isHoveringRemote = $state(false);
-  let activeTargetInfo: { label: string; rel_x: number; rel_y: number } | null = null;
+  let activeTargetInfo: { label: string; relX?: number; rel_x?: number; relY?: number; rel_y?: number } | null = null;
   let lastCheckTime = 0;
 
   let draggingTabId = $state<string | null>(null);
@@ -111,12 +113,12 @@
 
   async function checkRemoteTarget(screenX: number, screenY: number) {
     try {
-      const target = await invoke<{ label: string; rel_x: number; rel_y: number } | null>(
+      const target = await invoke<{ label: string; relX?: number; rel_x?: number; relY?: number; rel_y?: number } | null>(
         'find_window_at_point',
         {
           screenX,
           screenY,
-          excludeLabel: myWindowLabel
+          excludeLabel: myWindowLabel || null
         }
       );
       if (!draggingTabId) return;
@@ -124,12 +126,14 @@
       activeTargetInfo = target;
       if (target) {
         isHoveringRemote = true;
+        const rx = target.relX ?? target.rel_x ?? 0;
+        const ry = target.relY ?? target.rel_y ?? 0;
         tabChannel?.postMessage({
           type: 'drag_over_remote',
           sourceLabel: myWindowLabel,
           targetLabel: target.label,
-          relX: target.rel_x,
-          relY: target.rel_y,
+          relX: rx,
+          relY: ry,
           tab: tabs.find((t: Tab) => t.id === draggingTabId)
         });
       } else {
@@ -166,7 +170,7 @@
         dragTargetIndex = -1;
 
         const now = performance.now();
-        if (now - lastCheckTime > 35) {
+        if (now - lastCheckTime > 30) {
           lastCheckTime = now;
           checkRemoteTarget(e.screenX, e.screenY);
         }
@@ -221,12 +225,12 @@
     if (wasMoved && tearOff) {
       let target = activeTargetInfo;
       try {
-        const freshTarget = await invoke<{ label: string; rel_x: number; rel_y: number } | null>(
+        const freshTarget = await invoke<{ label: string; relX?: number; rel_x?: number; relY?: number; rel_y?: number } | null>(
           'find_window_at_point',
           {
             screenX: finalScreenX,
             screenY: finalScreenY,
-            excludeLabel: myWindowLabel
+            excludeLabel: myWindowLabel || null
           }
         );
         if (freshTarget) {
@@ -235,12 +239,13 @@
       } catch (err) {}
 
       if (target) {
-        // Dropped on an existing window!
+        const rx = target.relX ?? target.rel_x ?? 0;
+        // Dropped directly on an existing window!
         tabChannel?.postMessage({
           type: 'drop_on_remote',
           sourceLabel: myWindowLabel,
           targetLabel: target.label,
-          relX: target.rel_x,
+          relX: rx,
           tab: tab
         });
 
@@ -369,8 +374,12 @@
     window.addEventListener('click', handleWindowClick);
 
     try {
-      myWindowLabel = getCurrentWindow().label;
-    } catch (e) {}
+      myWindowLabel = await invoke<string>('get_current_window_label');
+    } catch (e) {
+      try {
+        myWindowLabel = getCurrentWindow().label;
+      } catch (err) {}
+    }
 
     if (typeof BroadcastChannel !== 'undefined') {
       tabChannel = new BroadcastChannel('markpad_cross_window_tabs');
@@ -379,6 +388,8 @@
         if (!data || data.sourceLabel === myWindowLabel) return;
 
         if (data.type === 'drag_over_remote' && data.targetLabel === myWindowLabel) {
+          remoteCursorX = data.relX;
+          remoteCursorY = data.relY;
           if (scrollAreaEl) {
             const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
             let targetIdx = tabs.length;
@@ -443,6 +454,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="tab-bar-container"
+  class:remote-hover={remoteDraggingTab !== null}
   role="region"
   aria-label="Tabs"
   ondragover={handleTabBarDragOver}
@@ -527,6 +539,15 @@
     {:else}
       🗔 Release to open in new window
     {/if}
+  </div>
+{/if}
+
+{#if remoteDraggingTab}
+  <div
+    class="tear-off-pill remote"
+    style="left: {Math.max(90, Math.min(remoteCursorX, 600))}px; top: {Math.max(10, Math.min(remoteCursorY + 24, 70))}px;"
+  >
+    📂 Insert into this window ({remoteDraggingTab.title})
   </div>
 {/if}
 
@@ -743,6 +764,12 @@
     user-select: none;
     scrollbar-width: thin;
     scrollbar-color: var(--border-color, #334155) transparent;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .tab-bar-container.remote-hover {
+    border-bottom-color: #10b981 !important;
+    box-shadow: inset 0 -2px 0 #10b981, 0 0 16px rgba(16, 185, 129, 0.35) !important;
   }
 
   .tab-scroll-area {

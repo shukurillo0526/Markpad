@@ -215,6 +215,7 @@ fn open_containing_folder(path: String) -> Result<(), String> {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TargetWindowInfo {
     pub label: String,
     pub rel_x: f64,
@@ -222,14 +223,20 @@ pub struct TargetWindowInfo {
 }
 
 #[tauri::command]
+fn get_current_window_label(window: tauri::WebviewWindow) -> String {
+    window.label().to_string()
+}
+
+#[tauri::command]
 fn find_window_at_point(
     app: tauri::AppHandle,
     screen_x: f64,
     screen_y: f64,
-    exclude_label: String,
+    exclude_label: Option<String>,
 ) -> Option<TargetWindowInfo> {
+    let exclude = exclude_label.unwrap_or_default();
     for (label, win) in app.webview_windows() {
-        if label == exclude_label {
+        if !exclude.is_empty() && label == exclude {
             continue;
         }
         if let Ok(true) = win.is_minimized() {
@@ -242,16 +249,17 @@ fn find_window_at_point(
             let logical_pos = pos.to_logical::<f64>(scale);
             let logical_size = size.to_logical::<f64>(scale);
 
-            // Test in logical (CSS) pixels
-            if screen_x >= logical_pos.x
-                && screen_x <= (logical_pos.x + logical_size.width)
-                && screen_y >= logical_pos.y
-                && screen_y <= (logical_pos.y + logical_size.height)
-            {
+            // Generous margin for smooth, natural drag-and-drop between windows
+            let min_x = logical_pos.x - 15.0;
+            let max_x = logical_pos.x + logical_size.width + 15.0;
+            let min_y = logical_pos.y - 45.0;
+            let max_y = logical_pos.y + logical_size.height + 25.0;
+
+            if screen_x >= min_x && screen_x <= max_x && screen_y >= min_y && screen_y <= max_y {
                 return Some(TargetWindowInfo {
                     label,
-                    rel_x: screen_x - logical_pos.x,
-                    rel_y: screen_y - logical_pos.y,
+                    rel_x: (screen_x - logical_pos.x).max(0.0),
+                    rel_y: (screen_y - logical_pos.y).max(0.0),
                 });
             }
 
@@ -260,15 +268,16 @@ fn find_window_at_point(
             let phys_y = pos.y as f64;
             let phys_w = size.width as f64;
             let phys_h = size.height as f64;
-            if screen_x >= phys_x
-                && screen_x <= (phys_x + phys_w)
-                && screen_y >= phys_y
-                && screen_y <= (phys_y + phys_h)
-            {
+            let p_min_x = phys_x - (15.0 * scale);
+            let p_max_x = phys_x + phys_w + (15.0 * scale);
+            let p_min_y = phys_y - (45.0 * scale);
+            let p_max_y = phys_y + phys_h + (25.0 * scale);
+
+            if screen_x >= p_min_x && screen_x <= p_max_x && screen_y >= p_min_y && screen_y <= p_max_y {
                 return Some(TargetWindowInfo {
                     label,
-                    rel_x: (screen_x - phys_x) / scale,
-                    rel_y: (screen_y - phys_y) / scale,
+                    rel_x: ((screen_x - phys_x) / scale).max(0.0),
+                    rel_y: ((screen_y - phys_y) / scale).max(0.0),
                 });
             }
         }
@@ -299,7 +308,8 @@ pub fn run() {
             open_new_window,
             open_containing_folder,
             find_window_at_point,
-            focus_window
+            focus_window,
+            get_current_window_label
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
