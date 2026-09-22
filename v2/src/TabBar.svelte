@@ -35,7 +35,9 @@
     onMoveToNewWindow,
     onNewWindow,
     onReorderTabs,
-    onDropFiles
+    onDropFiles,
+    onImportRemoteTab,
+    onRemoveClaimedTab
   } = $props<{
     tabs: Tab[];
     activeTabId: string;
@@ -50,10 +52,12 @@
     onSaveAsTab?: (id: string) => void;
     onRevealInExplorer?: (path: string) => void;
     onOpenFolder?: (path: string) => void;
-    onMoveToNewWindow?: (tab: Tab) => void;
+    onMoveToNewWindow?: (tab: Tab, screenX?: number, screenY?: number) => void;
     onNewWindow?: () => void;
     onReorderTabs?: (fromIndex: number, toIndex: number) => void;
     onDropFiles?: (files: FileList | string[]) => void;
+    onImportRemoteTab?: (tab: Tab, targetIndex: number) => void;
+    onRemoveClaimedTab?: (tabId: string) => void;
   }>();
 
   let contextMenu = $state<{ visible: boolean; x: number; y: number; tabId: string | null }>({
@@ -63,7 +67,14 @@
     tabId: null
   });
 
-  // ─── Smooth Pointer-Based Tab Drag & Reordering ───────────────────────
+  // ─── Smooth Pointer-Based Tab Drag, Cross-Window & Reordering ────────
+  const windowId = 'win_' + Math.random().toString(36).substring(2, 9);
+  let tabChannel: BroadcastChannel | null = null;
+  let remoteDropTargetIndex = $state<number>(-1);
+  let remoteDraggingTab = $state<Tab | null>(null);
+  let isHoveringRemote = $state(false);
+  let tabClaimResolve: ((val: boolean) => void) | null = null;
+
   let draggingTabId = $state<string | null>(null);
   let dragStartIndex = $state<number>(-1);
   let dragTargetIndex = $state<number>(-1);
@@ -85,6 +96,7 @@
     dragStartIndex = index;
     dragTargetIndex = index;
     isTearOff = false;
+    isHoveringRemote = false;
 
     const el = e.currentTarget as HTMLElement;
     try {
@@ -105,12 +117,32 @@
     if (hasMoved) {
       tearOffPos = { x: e.clientX, y: e.clientY };
 
-      // Dragging down away from tab bar (tear off to new window like Notepad)
-      if (dy > 45 || dy < -30) {
+      const isOutside = (
+        e.clientX < 0 || e.clientX > window.innerWidth ||
+        e.clientY < 0 || e.clientY > window.innerHeight
+      );
+
+      // Dragging down away from tab bar or completely outside window
+      if (isOutside || dy > 45 || dy < -25) {
         isTearOff = true;
         dragTargetIndex = -1;
+        tabChannel?.postMessage({
+          type: 'drag_move',
+          sourceWin: windowId,
+          tabId: draggingTabId,
+          screenX: e.screenX,
+          screenY: e.screenY,
+          tab: tabs.find((t: Tab) => t.id === draggingTabId)
+        });
       } else {
         isTearOff = false;
+        if (isHoveringRemote) {
+          isHoveringRemote = false;
+        }
+        tabChannel?.postMessage({
+          type: 'drag_end_or_cancel',
+          sourceWin: windowId
+        });
         if (scrollAreaEl) {
           const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
           let newTargetIdx = tabs.length - 1;
@@ -129,29 +161,63 @@
     }
   }
 
-  function handlePointerUp(e: PointerEvent, tab: Tab) {
+  async function handlePointerUp(e: PointerEvent, tab: Tab) {
     if (!draggingTabId) return;
 
     const wasMoved = hasMoved;
     const tearOff = isTearOff;
     const fromIdx = dragStartIndex;
     const toIdx = dragTargetIndex;
+    const hoveringRemote = isHoveringRemote;
+    const finalScreenX = e.screenX;
+    const finalScreenY = e.screenY;
 
     draggingTabId = null;
     dragStartIndex = -1;
     dragTargetIndex = -1;
     isTearOff = false;
     hasMoved = false;
+    isHoveringRemote = false;
 
     const el = e.currentTarget as HTMLElement;
     try {
       el.releasePointerCapture(e.pointerId);
     } catch (err) {}
 
-    if (tearOff) {
-      // Detached tab out of the tab bar! Move to new window like Notepad
-      if (onMoveToNewWindow) {
-        onMoveToNewWindow(tab);
+    if (wasMoved && tearOff) {
+      let wasClaimed = false;
+      if (hoveringRemote) {
+        const claimPromise = new Promise<boolean>((resolve) => {
+          tabClaimResolve = resolve;
+          setTimeout(() => resolve(false), 300);
+        });
+
+        tabChannel?.postMessage({
+          type: 'drag_drop',
+          sourceWin: windowId,
+          tabId: tab.id,
+          screenX: finalScreenX,
+          screenY: finalScreenY,
+          tab: tab
+        });
+
+        wasClaimed = await claimPromise;
+      }
+
+      if (wasClaimed) {
+        if (onRemoveClaimedTab) {
+          onRemoveClaimedTab(tab.id);
+        } else if (onCloseTab) {
+          onCloseTab(tab.id);
+        }
+      } else {
+        tabChannel?.postMessage({
+          type: 'drag_end_or_cancel',
+          sourceWin: windowId
+        });
+        if (onMoveToNewWindow) {
+          onMoveToNewWindow(tab, finalScreenX, finalScreenY);
+        }
       }
     } else if (wasMoved && toIdx !== -1 && toIdx !== fromIdx) {
       if (onReorderTabs) {
@@ -168,6 +234,11 @@
     dragTargetIndex = -1;
     isTearOff = false;
     hasMoved = false;
+    isHoveringRemote = false;
+    tabChannel?.postMessage({
+      type: 'drag_end_or_cancel',
+      sourceWin: windowId
+    });
   }
 
   function handleTabBarDragOver(e: DragEvent) {
@@ -252,11 +323,92 @@
 
   onMount(() => {
     window.addEventListener('click', handleWindowClick);
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      tabChannel = new BroadcastChannel('markpad_cross_window_tabs');
+      tabChannel.onmessage = (event) => {
+        const data = event.data;
+        if (!data || data.sourceWin === windowId) return;
+
+        if (data.type === 'drag_move') {
+          if (!scrollAreaEl) return;
+          const rect = scrollAreaEl.getBoundingClientRect();
+          const left = window.screenX + rect.left;
+          const right = window.screenX + rect.right;
+          const top = window.screenY + rect.top;
+          const bottom = window.screenY + rect.bottom + 25;
+
+          if (
+            data.screenX >= left &&
+            data.screenX <= right &&
+            data.screenY >= top - 25 &&
+            data.screenY <= bottom
+          ) {
+            const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
+            let targetIdx = tabs.length;
+            for (let i = 0; i < tabNodes.length; i++) {
+              const tRect = tabNodes[i].getBoundingClientRect();
+              const midX = window.screenX + tRect.left + tRect.width / 2;
+              if (data.screenX < midX) {
+                targetIdx = i;
+                break;
+              }
+            }
+            remoteDropTargetIndex = targetIdx;
+            remoteDraggingTab = data.tab;
+            tabChannel?.postMessage({
+              type: 'hover_ack',
+              sourceWin: windowId,
+              targetWin: data.sourceWin,
+              tabId: data.tabId
+            });
+          } else {
+            if (remoteDropTargetIndex !== -1) {
+              remoteDropTargetIndex = -1;
+              remoteDraggingTab = null;
+            }
+          }
+        } else if (data.type === 'drag_end_or_cancel') {
+          remoteDropTargetIndex = -1;
+          remoteDraggingTab = null;
+        } else if (data.type === 'drag_drop') {
+          if (remoteDropTargetIndex !== -1 && data.tab) {
+            const insertIdx = remoteDropTargetIndex;
+            remoteDropTargetIndex = -1;
+            remoteDraggingTab = null;
+            const droppedTab: Tab = {
+              ...data.tab,
+              id: 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)
+            };
+            if (onImportRemoteTab) {
+              onImportRemoteTab(droppedTab, insertIdx);
+            }
+            tabChannel?.postMessage({
+              type: 'tab_claimed',
+              sourceWin: windowId,
+              targetWin: data.sourceWin,
+              tabId: data.tabId
+            });
+          }
+        } else if (data.type === 'tab_claimed' && data.targetWin === windowId) {
+          if (tabClaimResolve) {
+            tabClaimResolve(true);
+            tabClaimResolve = null;
+          }
+        } else if (data.type === 'hover_ack' && data.targetWin === windowId) {
+          isHoveringRemote = true;
+        }
+      };
+    }
   });
 
   onDestroy(() => {
     if (typeof window !== 'undefined') {
       window.removeEventListener('click', handleWindowClick);
+    }
+    if (tabChannel) {
+      tabChannel.close();
+      tabChannel = null;
     }
   });
 </script>
@@ -274,6 +426,14 @@
       {@const badge = getExtBadge(tab.extension)}
       {@const isDragging = draggingTabId === tab.id}
       {@const isTarget = dragTargetIndex === idx && draggingTabId !== tab.id && !isTearOff}
+      {@const isRemoteTarget = remoteDropTargetIndex === idx}
+
+      {#if isRemoteTarget}
+        <div class="remote-drop-marker" title="Insert here">
+          <div class="remote-drop-line"></div>
+        </div>
+      {/if}
+
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <div
         class="tab-item"
@@ -317,6 +477,12 @@
       </div>
     {/each}
 
+    {#if remoteDropTargetIndex >= tabs.length}
+      <div class="remote-drop-marker" title="Insert here">
+        <div class="remote-drop-line"></div>
+      </div>
+    {/if}
+
     <button class="new-tab-btn" aria-label="New tab" title="New Tab (Ctrl+N)" onclick={onNewTab}>
       +
     </button>
@@ -326,9 +492,14 @@
 {#if isTearOff}
   <div
     class="tear-off-pill"
+    class:remote={isHoveringRemote}
     style="left: {tearOffPos.x}px; top: {tearOffPos.y + 24}px;"
   >
-    🗔 Move to new window
+    {#if isHoveringRemote}
+      📂 Insert into window
+    {:else}
+      🗔 Release to open in new window
+    {/if}
   </div>
 {/if}
 
@@ -495,6 +666,39 @@
     pointer-events: none;
     z-index: 10000;
     animation: fadeIn 0.15s ease-out;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .tear-off-pill.remote {
+    background: #059669 !important;
+    box-shadow: 0 8px 24px rgba(5, 150, 105, 0.6) !important;
+  }
+
+  .remote-drop-marker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 6px;
+    height: 28px;
+    margin: 0 2px;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .remote-drop-line {
+    width: 3px;
+    height: 100%;
+    background: #10b981;
+    border-radius: 2px;
+    box-shadow: 0 0 10px #10b981;
+    animation: pulseMarker 0.8s ease-in-out infinite alternate;
+  }
+
+  @keyframes pulseMarker {
+    from { opacity: 0.6; transform: scaleY(0.85); }
+    to { opacity: 1; transform: scaleY(1); }
   }
 
   :global(.highlight-item) {

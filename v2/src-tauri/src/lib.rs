@@ -162,16 +162,64 @@ fn reveal_file(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_new_window(file_path: Option<String>) -> Result<(), String> {
-    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let mut cmd = std::process::Command::new(current_exe);
-    if let Some(path) = file_path {
+async fn open_new_window(
+    app: tauri::AppHandle,
+    file_path: Option<String>,
+    transfer_id: Option<String>,
+    x: Option<f64>,
+    y: Option<f64>,
+) -> Result<(), String> {
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let label = format!("window-{}", timestamp);
+
+    let mut query = String::new();
+    if let Some(ref tid) = transfer_id {
+        query = format!("?transfer_id={}", tid);
+    } else if let Some(ref path) = file_path {
         if !path.is_empty() {
-            cmd.arg(path);
+            query = format!("?open={}", path);
         }
     }
-    cmd.spawn().map_err(|e| format!("Failed to launch new window: {}", e))?;
-    Ok(())
+
+    let url_str = if query.is_empty() {
+        "index.html".to_string()
+    } else {
+        format!("index.html{}", query)
+    };
+
+    let mut builder = tauri::WebviewWindowBuilder::new(
+        &app,
+        &label,
+        tauri::WebviewUrl::App(url_str.into()),
+    )
+    .title("Markpad Native")
+    .inner_size(1000.0, 700.0)
+    .resizable(true)
+    .drag_and_drop(true);
+
+    if let (Some(px), Some(py)) = (x, y) {
+        builder = builder.position(px, py);
+    }
+
+    match builder.build() {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            // Fallback: spawn executable
+            if let Ok(current_exe) = std::env::current_exe() {
+                let mut cmd = std::process::Command::new(current_exe);
+                if let Some(ref path) = file_path {
+                    if !path.is_empty() {
+                        cmd.arg(path);
+                    }
+                }
+                let _ = cmd.spawn();
+            }
+            Err(format!("Window build notice: {}", e))
+        }
+    }
 }
 
 #[tauri::command]

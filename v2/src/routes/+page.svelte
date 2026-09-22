@@ -484,28 +484,80 @@
     }
   }
 
-  async function openNewWindow(filePath: string | null = null) {
+  async function openNewWindow(
+    filePath: string | null = null,
+    tab: Tab | null = null,
+    screenX?: number,
+    screenY?: number
+  ) {
     try {
-      await invoke('open_new_window', { filePath });
+      let transferId: string | null = null;
+      if (tab) {
+        transferId = 'transfer_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        try {
+          localStorage.setItem('markpad_transfer_' + transferId, JSON.stringify({
+            title: tab.title,
+            filePath: tab.filePath,
+            content: tab.content,
+            originalContent: tab.originalContent,
+            isDirty: tab.isDirty,
+            extension: tab.extension,
+            lineEnding: tab.lineEnding,
+            encoding: tab.encoding,
+            mode: tab.mode
+          }));
+        } catch (e) {
+          console.error('Failed to store transfer data in localStorage', e);
+        }
+      }
+
+      await invoke('open_new_window', {
+        filePath: filePath || (tab ? tab.filePath : null),
+        transferId,
+        x: screenX ? Math.max(0, screenX - 100) : null,
+        y: screenY ? Math.max(0, screenY - 20) : null
+      });
     } catch (e) {
       console.error('Failed to open new window:', e);
       showToast(`Failed to open new window: ${e}`, 'error');
     }
   }
 
-  async function handleMoveToNewWindow(tab: Tab) {
-    if (tab.filePath) {
-      await openNewWindow(tab.filePath);
-      if (tabs.length > 1) {
-        tabs = tabs.filter((t) => t.id !== tab.id);
+  async function handleMoveToNewWindow(tab: Tab, screenX?: number, screenY?: number) {
+    await openNewWindow(tab.filePath, tab, screenX, screenY);
+    if (tabs.length > 1) {
+      tabs = tabs.filter((t) => t.id !== tab.id);
+      if (activeTabId === tab.id) {
         activeTabId = tabs[0].id;
       }
     } else {
-      await openNewWindow(null);
-      if (tabs.length > 1) {
-        tabs = tabs.filter((t) => t.id !== tab.id);
+      // If it was the only tab, close this window so it has moved to the new window
+      try {
+        await getCurrentWindow().destroy();
+      } catch (e) {}
+    }
+  }
+
+  function handleImportRemoteTab(tab: Tab, targetIndex: number) {
+    const newTabs = [...tabs];
+    const safeIdx = Math.max(0, Math.min(targetIndex, newTabs.length));
+    newTabs.splice(safeIdx, 0, tab);
+    tabs = newTabs;
+    activeTabId = tab.id;
+    showToast(`Added tab "${tab.title}" from another window`, 'success');
+  }
+
+  async function handleRemoveClaimedTab(tabId: string) {
+    if (tabs.length > 1) {
+      tabs = tabs.filter((t) => t.id !== tabId);
+      if (activeTabId === tabId) {
         activeTabId = tabs[0].id;
       }
+    } else {
+      // If the only tab was dragged out into another window, close this empty window
+      try {
+        await getCurrentWindow().destroy();
+      } catch (e) {}
     }
   }
 
@@ -769,11 +821,43 @@
     }
 
     try {
-      const args = await invoke<string[]>('get_startup_args');
-      if (args && args.length > 1) {
-        const startupPath = args[1];
-        if (!startupPath.startsWith('--')) {
-          await loadFileIntoTab(startupPath);
+      const urlParams = new URLSearchParams(window.location.search);
+      const transferId = urlParams.get('transfer_id');
+      const openPath = urlParams.get('open');
+
+      if (transferId) {
+        const dataStr = localStorage.getItem('markpad_transfer_' + transferId);
+        if (dataStr) {
+          try {
+            const data = JSON.parse(dataStr);
+            localStorage.removeItem('markpad_transfer_' + transferId);
+            tabs = [{
+              id: 'tab_' + Date.now(),
+              title: data.title || 'Untitled',
+              filePath: data.filePath || null,
+              content: data.content || '',
+              originalContent: data.originalContent || '',
+              isDirty: data.isDirty || false,
+              extension: data.extension || 'txt',
+              cursorPos: { line: 1, col: 1, selectionLen: 0 },
+              lineEnding: data.lineEnding || 'LF',
+              encoding: data.encoding || 'UTF-8',
+              mode: data.mode || 'editor'
+            }];
+            activeTabId = tabs[0].id;
+          } catch (err) {
+            console.error('Failed to parse transfer data', err);
+          }
+        }
+      } else if (openPath) {
+        await loadFileIntoTab(openPath);
+      } else {
+        const args = await invoke<string[]>('get_startup_args');
+        if (args && args.length > 1) {
+          const startupPath = args[1];
+          if (!startupPath.startsWith('--')) {
+            await loadFileIntoTab(startupPath);
+          }
         }
       }
     } catch (e) {
@@ -853,7 +937,6 @@
   <div data-tauri-drag-region class="titlebar">
     <div class="menu">
       <button onclick={openFile} title="Open File (Ctrl+O)">{t('open')}</button>
-      <button onclick={() => openNewWindow()} title="New Window (Ctrl+Shift+N)">🗖 Window</button>
       <button onclick={() => saveActiveFile(false)} title="Save File (Ctrl+S)">{t('save')}</button>
       <button onclick={() => saveActiveFile(true)} title="Save As (Ctrl+Shift+S)">{t('save_as')}</button>
       <button onclick={() => (showExportModal = true)} title="Export PDF / HTML / Clipboard (Ctrl+E)">{t('export')}</button>
@@ -972,6 +1055,8 @@
     onMoveToNewWindow={handleMoveToNewWindow}
     onNewWindow={() => openNewWindow()}
     onDropFiles={handleFilesDropped}
+    onImportRemoteTab={handleImportRemoteTab}
+    onRemoveClaimedTab={handleRemoveClaimedTab}
   />
 
   <!-- ─── Editor / View Area ────────────────────────────────────────── -->
