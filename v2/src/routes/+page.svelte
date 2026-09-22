@@ -13,7 +13,7 @@
   import LogAnalyzer from '../LogAnalyzer.svelte';
   import TabBar, { type Tab } from '../TabBar.svelte';
   import StatusBar from '../StatusBar.svelte';
-  import { t, getLocale, setLocale } from '../i18n.svelte';
+  import { t, getLocale, setLocale, type LocaleKey } from '../i18n.svelte';
   import { exportAsHtml, generateStandaloneHtml, printToPdf } from '../export';
 
   function getDefaultModeForExt(ext: string): Tab['mode'] {
@@ -49,8 +49,7 @@
   let tabs = $state<Tab[]>([createDefaultTab()]);
   let activeTabId = $state<string>('tab-1');
   let recentFiles = $state<Array<{ path: string; name: string; timestamp: number }>>([]);
-  let systemPrefersDark = $state(true);
-  let themePreference = $state<'system' | 'dark' | 'light'>('system');
+  let themePreference = $state<'dark' | 'light'>('dark');
   let wordWrap = $state(false);
   let showInvisibles = $state(false);
   let toasts = $state<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
@@ -61,9 +60,7 @@
   let editorRef: { triggerSearch: () => void; triggerGotoLine: () => void } | undefined = $state();
 
   // ─── Derived ─────────────────────────────────────────────────────────
-  let isDarkMode = $derived(
-    themePreference === 'system' ? systemPrefersDark : themePreference === 'dark'
-  );
+  let isDarkMode = $derived(themePreference === 'dark');
 
   let activeTab = $derived.by(() => {
     return tabs.find((t) => t.id === activeTabId) || tabs[0];
@@ -505,9 +502,7 @@
 
   // ─── Theme & Mode Cycling ───────────────────────────────────────────
   function cycleTheme() {
-    if (themePreference === 'system') themePreference = 'dark';
-    else if (themePreference === 'dark') themePreference = 'light';
-    else themePreference = 'system';
+    themePreference = themePreference === 'dark' ? 'light' : 'dark';
     localStorage.setItem('markpad-theme', themePreference);
   }
 
@@ -519,19 +514,13 @@
 
   // ─── Initialization ──────────────────────────────────────────────────
   onMount(async () => {
-    const savedTheme = localStorage.getItem('markpad-theme') as 'system' | 'dark' | 'light' | null;
-    if (savedTheme && ['system', 'dark', 'light'].includes(savedTheme)) {
+    const savedTheme = localStorage.getItem('markpad-theme') as 'dark' | 'light' | null;
+    if (savedTheme && ['dark', 'light'].includes(savedTheme)) {
       themePreference = savedTheme;
     }
 
     wordWrap = localStorage.getItem('markpad-wordwrap') === 'true';
     showInvisibles = localStorage.getItem('markpad-invisibles') === 'true';
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    systemPrefersDark = mediaQuery.matches;
-    mediaQuery.addEventListener('change', (e) => {
-      systemPrefersDark = e.matches;
-    });
 
     const savedRecents = localStorage.getItem('markpad-recents');
     if (savedRecents) {
@@ -650,13 +639,13 @@
     </div>
 
     <div class="modes">
-      <button onclick={cycleTheme} class="icon-btn" title="Toggle Theme (System / Dark / Light)">
-        {themePreference === 'system' ? '💻' : themePreference === 'dark' ? '🌙' : '☀️'}
+      <button onclick={cycleTheme} class="icon-btn" title="Toggle Theme (Dark / Light)">
+        {themePreference === 'dark' ? '🌙' : '☀️'}
       </button>
 
       <select
         value={getLocale()}
-        onchange={(e) => setLocale(e.currentTarget.value)}
+        onchange={(e) => setLocale(e.currentTarget.value as LocaleKey)}
         class="icon-btn"
         style="text-transform: uppercase; font-weight: 600; appearance: none; background: transparent; border: none; outline: none; cursor: pointer; text-align: center;"
         title="Switch Language"
