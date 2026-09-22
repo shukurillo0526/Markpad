@@ -662,10 +662,10 @@
         title="Switch Language"
       >
         <option value="en">EN</option>
-        <option value="ru">RU</option>
-        <option value="uz">UZ</option>
         <option value="zh">ZH</option>
+        <option value="ru">RU</option>
         <option value="ko">KO</option>
+        <option value="uz">UZ</option>
       </select>
 
       <div class="divider"></div>
