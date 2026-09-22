@@ -69,6 +69,10 @@ export function generateStandaloneHtml({ title, htmlContent, isDark = true }: Ex
       padding-left: 16px;
       color: #94a3b8;
     }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -221,6 +225,11 @@ export function generateStandaloneHtml({ title, htmlContent, isDark = true }: Ex
       table:not(.doc-layout) th {
         background: #f1f5f9 !important;
         color: #0f172a !important;
+      }
+      img {
+        max-width: 100% !important;
+        height: auto !important;
+        page-break-inside: avoid !important;
       }
       h1, h2, h3, h4, h5, h6 {
         break-after: avoid !important;

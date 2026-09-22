@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
+  import { printToPdf, escapeHtml } from './export';
 
   let {
     bytes = null,
@@ -53,6 +54,9 @@
 
     loading = true;
     errorMsg = null;
+    if (docxPageEl) {
+      docxPageEl.innerHTML = '';
+    }
 
     try {
       if (ext === 'xlsx' || ext === 'xls') {
@@ -68,15 +72,26 @@
         const mammoth = await import('mammoth');
         const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
         docxHtml = result.value || '<p>Document is empty</p>';
-        updateWordCount();
       }
     } catch (err) {
       console.error('Office parsing error:', err);
       errorMsg = (err as Error).message || 'Failed to parse document';
     } finally {
       loading = false;
+      await tick();
+      if (docxPageEl && docxHtml) {
+        docxPageEl.innerHTML = docxHtml;
+        updateWordCount();
+      }
     }
   }
+
+  $effect(() => {
+    if (docxPageEl && docxHtml && !docxPageEl.hasChildNodes()) {
+      docxPageEl.innerHTML = docxHtml;
+      updateWordCount();
+    }
+  });
 
   // ─── Excel Operations ─────────────────────────────────────────────────
   function loadSheetData(name: string, XLSXModule?: any) {
@@ -189,18 +204,17 @@
 
   // ─── Word Document Operations ─────────────────────────────────────────
   function updateWordCount() {
-    if (!docxHtml) {
+    if (!docxPageEl) {
       wordCount = 0;
       return;
     }
-    const textOnly = docxHtml.replace(/<[^>]+>/g, ' ');
+    const textOnly = docxPageEl.innerText || docxPageEl.textContent || '';
     const words = textOnly.trim().split(/\s+/).filter(Boolean);
     wordCount = words.length;
   }
 
   function handleDocxInput() {
     if (docxPageEl) {
-      docxHtml = docxPageEl.innerHTML;
       updateWordCount();
       onDirtyChange(true);
     }
@@ -208,12 +222,12 @@
 
   function formatDoc(command: string, value: string | undefined = undefined) {
     if (typeof document !== 'undefined') {
-      document.execCommand(command, false, value);
       if (docxPageEl) {
-        docxHtml = docxPageEl.innerHTML;
-        updateWordCount();
-        onDirtyChange(true);
+        docxPageEl.focus();
       }
+      document.execCommand(command, false, value);
+      updateWordCount();
+      onDirtyChange(true);
     }
   }
 
@@ -225,12 +239,14 @@
 
     saving = true;
     try {
-      const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${docxPageEl.innerHTML}</body></html>`;
+      const currentHtml = docxPageEl.innerHTML;
+      const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${currentHtml}</body></html>`;
       const { asBlob } = await import('html-docx-js-typescript');
       const docxResult: any = await asBlob(fullHtml);
       const uint8 = new Uint8Array(docxResult.buffer ? docxResult.buffer : docxResult);
 
       await invoke('save_file_bytes', { path: filePath, bytes: Array.from(uint8) });
+      docxHtml = currentHtml;
       onDirtyChange(false);
       showNotification('Word document saved successfully');
     } catch (e) {
@@ -239,6 +255,66 @@
     } finally {
       saving = false;
     }
+  }
+
+  export function getExportHtml(): string {
+    if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
+      const html = docxPageEl ? docxPageEl.innerHTML : (docxHtml || '<p>Empty Document</p>');
+      return `<div class="word-export-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6;">${html}</div>`;
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      if (!sheetData || sheetData.length === 0) {
+        return '<p>Empty Spreadsheet</p>';
+      }
+      const headerRow = sheetData[0] || [];
+      const bodyRows = sheetData.slice(1);
+
+      const headerCells = headerRow
+        .map((cell, idx) => `<th>${escapeHtml(String(cell || `Col ${idx + 1}`))}</th>`)
+        .join('');
+
+      const bodyRowsHtml = bodyRows
+        .map((row) => {
+          const cells = row.map((cell) => `<td>${escapeHtml(String(cell ?? ''))}</td>`).join('');
+          return `<tr>${cells}</tr>`;
+        })
+        .join('');
+
+      return `
+        <div class="excel-export-content">
+          <div style="margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #0284c7;">
+            <h2 style="margin: 0 0 6px 0; color: #0284c7; font-size: 18px;">📗 ${escapeHtml(activeSheet || 'Spreadsheet')}</h2>
+            <div style="font-size: 12px; color: #64748b;">
+              Total Rows: <strong>${bodyRows.length}</strong> &bull; Columns: <strong>${headerRow.length}</strong>
+            </div>
+          </div>
+          <table style="width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 10pt;">
+            <thead>
+              <tr style="background: #f1f5f9; color: #0f172a;">${headerCells}</tr>
+            </thead>
+            <tbody>
+              ${bodyRowsHtml}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  export function getPlainText(): string {
+    if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
+      return docxPageEl ? (docxPageEl.innerText || docxPageEl.textContent || '') : '';
+    } else if (ext === 'xlsx' || ext === 'xls') {
+      return sheetData.map((row) => row.join('\t')).join('\n');
+    }
+    return '';
+  }
+
+  function handleDirectExportPdf() {
+    const html = getExportHtml();
+    const title = filePath ? filePath.split('\\').pop() || 'Document' : 'Document';
+    printToPdf(title, html);
+    showNotification('Opening PDF Print Engine...');
   }
 
   async function copyDocxText() {
@@ -358,6 +434,9 @@
         </button>
         <button class="tool-btn" onclick={exportCurrentSheetCsv} title="Export current sheet as CSV">
           📥 Export CSV
+        </button>
+        <button class="tool-btn" onclick={handleDirectExportPdf} title="Export sheet as PDF">
+          📄 Export PDF
         </button>
       </div>
     </div>
@@ -485,6 +564,9 @@
         <button class="tool-btn" onclick={copyDocxText} title="Copy Plain Text">
           📋 Copy
         </button>
+        <button class="tool-btn" onclick={handleDirectExportPdf} title="Export document as PDF">
+          📄 Export PDF
+        </button>
       </div>
     </div>
 
@@ -497,9 +579,7 @@
         style="font-size: {fontScale}%"
         contenteditable="true"
         oninput={handleDocxInput}
-      >
-        {@html docxHtml}
-      </div>
+      ></div>
     </div>
   {/if}
 </div>

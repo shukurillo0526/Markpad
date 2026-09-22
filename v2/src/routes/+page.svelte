@@ -63,7 +63,11 @@
   let showExportModal = $state(false);
 
   let editorRef: { triggerSearch: () => void; triggerGotoLine: () => void } | undefined = $state();
-  let officeViewerRef: { saveDocument?: () => Promise<void> } | undefined = $state();
+  let officeViewerRef: {
+    saveDocument?: () => Promise<void>;
+    getExportHtml?: () => string;
+    getPlainText?: () => string;
+  } | undefined = $state();
 
   // ─── Derived ─────────────────────────────────────────────────────────
   let isDarkMode = $derived(themePreference === 'dark');
@@ -148,23 +152,45 @@
   }
 
   // ─── Export Actions ──────────────────────────────────────────────────
+  function getActiveTabExportHtml(): string {
+    if (!activeTab) return '';
+    if (activeTab.mode === 'office' && officeViewerRef?.getExportHtml) {
+      const officeHtml = officeViewerRef.getExportHtml();
+      if (officeHtml) return officeHtml;
+    }
+    if ((activeTab.extension === 'md' || activeTab.extension === 'markdown') && parsedHtml) {
+      return parsedHtml;
+    }
+    return `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`;
+  }
+
+  function getActiveTabPlainText(): string {
+    if (!activeTab) return '';
+    if (activeTab.mode === 'office' && officeViewerRef?.getPlainText) {
+      const officeText = officeViewerRef.getPlainText();
+      if (officeText) return officeText;
+    }
+    return activeTab.content;
+  }
+
   async function handleExportHtml() {
     if (!activeTab) return;
-    const htmlToExport = parsedHtml || `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`;
+    const htmlToExport = getActiveTabExportHtml();
     const ok = await exportAsHtml(activeTab.title, htmlToExport, isDarkMode);
     if (ok) showToast('Exported Standalone HTML successfully', 'success');
   }
 
   function handleExportPdf() {
     if (!activeTab) return;
-    const htmlToExport = parsedHtml || `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`;
+    const htmlToExport = getActiveTabExportHtml();
     printToPdf(activeTab.title, htmlToExport);
     showToast('Opening PDF Print Engine...', 'success');
   }
 
   async function handleCopyHtmlToClipboard() {
     if (!activeTab) return;
-    const htmlToCopy = parsedHtml || generateStandaloneHtml({ title: activeTab.title, htmlContent: `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`, isDark: isDarkMode });
+    const htmlContent = getActiveTabExportHtml();
+    const htmlToCopy = generateStandaloneHtml({ title: activeTab.title, htmlContent, isDark: isDarkMode });
     try {
       await navigator.clipboard.writeText(htmlToCopy);
       showToast('HTML copied to clipboard', 'success');
@@ -176,7 +202,8 @@
   async function handleCopyTextToClipboard() {
     if (!activeTab) return;
     try {
-      await navigator.clipboard.writeText(activeTab.content);
+      const textToCopy = getActiveTabPlainText();
+      await navigator.clipboard.writeText(textToCopy);
       showToast('Text copied to clipboard', 'success');
     } catch (e) {
       showToast('Failed to copy text', 'error');
