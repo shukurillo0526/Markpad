@@ -821,9 +821,16 @@
     }
 
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const transferId = urlParams.get('transfer_id');
-      const openPath = urlParams.get('open');
+      // Parse hash fragment: index.html#transfer_id=xxx or index.html#open=encoded_path
+      const hash = window.location.hash.replace(/^#/, '');
+      const hashParams = new URLSearchParams(hash);
+      const transferId = hashParams.get('transfer_id');
+      const openPath = hashParams.get('open');
+
+      // Clean hash from URL after reading
+      if (hash) {
+        history.replaceState(null, '', window.location.pathname);
+      }
 
       if (transferId) {
         const dataStr = localStorage.getItem('markpad_transfer_' + transferId);
@@ -850,7 +857,7 @@
           }
         }
       } else if (openPath) {
-        await loadFileIntoTab(openPath);
+        await loadFileIntoTab(decodeURIComponent(openPath));
       } else {
         const args = await invoke<string[]>('get_startup_args');
         if (args && args.length > 1) {

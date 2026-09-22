@@ -175,19 +175,19 @@ async fn open_new_window(
         .as_millis();
     let label = format!("window-{}", timestamp);
 
-    let mut query = String::new();
+    let mut hash_fragment = String::new();
     if let Some(ref tid) = transfer_id {
-        query = format!("?transfer_id={}", tid);
+        hash_fragment = format!("#transfer_id={}", tid);
     } else if let Some(ref path) = file_path {
         if !path.is_empty() {
-            query = format!("?open={}", path);
+            hash_fragment = format!("#open={}", urlencoding::encode(path));
         }
     }
 
-    let url_str = if query.is_empty() {
+    let url_str = if hash_fragment.is_empty() {
         "index.html".to_string()
     } else {
-        format!("index.html{}", query)
+        format!("index.html{}", hash_fragment)
     };
 
     let mut builder = tauri::WebviewWindowBuilder::new(
