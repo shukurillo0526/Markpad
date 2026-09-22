@@ -52,10 +52,17 @@
 
 <footer class="status-bar" aria-label="Status Bar">
   <div class="status-left">
-    <span class="status-item mode-badge" class:dirty={isDirty}>
-      <span class="dot" class:active={isDirty}></span>
-      {isDirty ? t('unsaved') : t('saved_state')}
-    </span>
+    {#if activeMode === 'pdf' || activeMode === 'office'}
+      <span class="status-item mode-badge readonly-mode">
+        <span class="dot readonly-dot"></span>
+        Read Only
+      </span>
+    {:else}
+      <span class="status-item mode-badge" class:dirty={isDirty}>
+        <span class="dot" class:active={isDirty}></span>
+        {isDirty ? t('unsaved') : t('saved_state')}
+      </span>
+    {/if}
 
     {#if filePath}
       <span class="status-item file-path" title={filePath}>
@@ -107,25 +114,27 @@
       </span>
     {/if}
 
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <span
-      class="status-item clickable"
-      onclick={onToggleLineEnding}
-      title="Click to toggle CRLF / LF line endings"
-    >
-      {lineEnding}
-    </span>
+    {#if activeMode !== 'pdf' && activeMode !== 'office'}
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <span
+        class="status-item clickable"
+        onclick={onToggleLineEnding}
+        title="Click to toggle CRLF / LF line endings"
+      >
+        {lineEnding}
+      </span>
 
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <span
-      class="status-item clickable"
-      onclick={onToggleEncoding}
-      title="Encoding (UTF-8)"
-    >
-      {encoding}
-    </span>
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <span
+        class="status-item clickable"
+        onclick={onToggleEncoding}
+        title="Encoding (UTF-8)"
+      >
+        {encoding}
+      </span>
+    {/if}
 
     <span class="status-item language-tag">{language}</span>
   </div>

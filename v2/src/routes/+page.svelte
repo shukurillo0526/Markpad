@@ -102,7 +102,9 @@
   });
 
   let activeFileSize = $derived.by(() => {
-    return activeTab ? new TextEncoder().encode(activeTab.content).byteLength : 0;
+    if (!activeTab) return 0;
+    if (activeTab.bytes && activeTab.bytes.length > 0) return activeTab.bytes.length;
+    return new TextEncoder().encode(activeTab.content).byteLength;
   });
 
   let activeLanguage = $derived.by(() => {
@@ -112,6 +114,10 @@
       case 'md': case 'markdown': return 'Markdown';
       case 'json': return 'JSON';
       case 'csv': case 'tsv': return 'CSV / Data';
+      case 'pdf': return 'PDF Document';
+      case 'docx': case 'doc': return 'Word Document';
+      case 'xlsx': case 'xls': return 'Excel Workbook';
+      case 'rtf': return 'Rich Text (RTF)';
       case 'py': return 'Python';
       case 'js': case 'jsx': return 'JavaScript';
       case 'ts': case 'tsx': return 'TypeScript';
@@ -550,6 +556,9 @@
 
   function setMode(mode: Tab['mode']) {
     if (activeTab) {
+      if (['docx', 'doc', 'xlsx', 'xls', 'pdf', 'rtf'].includes(activeTab.extension.toLowerCase()) && mode === 'editor') {
+        return;
+      }
       activeTab.mode = mode;
     }
   }
@@ -700,11 +709,13 @@
         <option value="uz">UZ</option>
       </select>
 
-      <div class="divider"></div>
+      {#if !['docx', 'doc', 'xlsx', 'xls', 'pdf', 'rtf'].includes(activeTab?.extension.toLowerCase() || '')}
+        <div class="divider"></div>
 
-      <button class:active={activeTab?.mode === 'editor'} onclick={() => setMode('editor')}>
-        {t('edit')}
-      </button>
+        <button class:active={activeTab?.mode === 'editor'} onclick={() => setMode('editor')}>
+          {t('edit')}
+        </button>
+      {/if}
       
       {#if activeTab?.extension === 'csv' || activeTab?.extension === 'tsv'}
         <button class:active={activeTab?.mode === 'dataviewer'} onclick={() => setMode('dataviewer')}>
@@ -739,18 +750,6 @@
       {#if activeTab?.extension.toLowerCase() === 'log'}
         <button class:active={activeTab?.mode === 'loganalyzer'} onclick={() => setMode('loganalyzer')}>
           Log Filter
-        </button>
-      {/if}
-
-      {#if activeTab?.extension.toLowerCase() === 'pdf'}
-        <button class:active={activeTab?.mode === 'pdf'} onclick={() => setMode('pdf')}>
-          PDF Viewer
-        </button>
-      {/if}
-
-      {#if ['xlsx', 'xls', 'docx', 'doc'].includes(activeTab?.extension.toLowerCase() || '')}
-        <button class:active={activeTab?.mode === 'office'} onclick={() => setMode('office')}>
-          Document
         </button>
       {/if}
     </div>
