@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Markpad Native",
-  "version": "1.1.0",
-  "identifier": "Voha.MarkpadNative",
+  "version": "2.0.0",
+  "identifier": "Vodiy.MarkpadNative",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -16,12 +16,14 @@
         "title": "Markpad Native",
         "width": 1000,
         "height": 700,
+        "minWidth": 600,
+        "minHeight": 400,
         "resizable": true,
         "dragDropEnabled": true
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' data: blob:; worker-src 'self' blob:; child-src 'self' blob:"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; img-src 'self' https: data: blob:; worker-src 'self' blob:; child-src 'self' blob:"
     }
   },
   "bundle": {

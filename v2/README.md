@@ -47,7 +47,7 @@ Builds the standalone installer using Rust release optimizations and the WiX too
 npm run tauri build
 ```
 Once done, your high-performance installer will be saved at:
-`v2/src-tauri/target/release/bundle/msi/Markpad_1.0.0_x64_en-US.msi`
+`v2/src-tauri/target/release/bundle/nsis/Markpad Native_2.0.0_x64-setup.exe`
 
 ---
 

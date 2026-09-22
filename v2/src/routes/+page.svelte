@@ -62,6 +62,8 @@
   let showRecentsModal = $state(false);
   let showExportModal = $state(false);
   let showFeedbackModal = $state(false);
+  let copiedTon = $state(false);
+  let copiedSol = $state(false);
 
   async function openExternalUrl(url: string) {
     try {
@@ -357,12 +359,15 @@
     activeTabId = id;
   }
 
-  function handleCloseTab(id: string) {
+  async function handleCloseTab(id: string) {
     const targetTab = tabs.find((t) => t.id === id);
     if (!targetTab) return;
 
     if (targetTab.isDirty) {
-      const confirmClose = window.confirm(`"${targetTab.title}" has unsaved changes. Do you want to close it without saving?`);
+      const confirmClose = await ask(`"${targetTab.title}" has unsaved changes. Do you want to close it without saving?`, {
+        title: 'Unsaved Changes',
+        kind: 'warning'
+      });
       if (!confirmClose) return;
     }
 
@@ -377,20 +382,26 @@
     }
   }
 
-  function handleCloseOthers(id: string) {
+  async function handleCloseOthers(id: string) {
     const dirtyOthers = tabs.filter((t) => t.id !== id && t.isDirty);
     if (dirtyOthers.length > 0) {
-      const confirmClose = window.confirm(`Some tabs have unsaved changes. Close all other tabs anyway?`);
+      const confirmClose = await ask(`Some tabs have unsaved changes. Close all other tabs anyway?`, {
+        title: 'Unsaved Changes',
+        kind: 'warning'
+      });
       if (!confirmClose) return;
     }
     tabs = tabs.filter((t) => t.id === id || t.pinned);
     activeTabId = id;
   }
 
-  function handleCloseAll() {
+  async function handleCloseAll() {
     const dirtyTabs = tabs.filter((t) => t.isDirty);
     if (dirtyTabs.length > 0) {
-      const confirmClose = window.confirm(`Some tabs have unsaved changes. Close all tabs anyway?`);
+      const confirmClose = await ask(`Some tabs have unsaved changes. Close all tabs anyway?`, {
+        title: 'Unsaved Changes',
+        kind: 'warning'
+      });
       if (!confirmClose) return;
     }
     tabs = [];
@@ -528,14 +539,18 @@
         x: screenX ? Math.max(0, screenX - 100) : null,
         y: screenY ? Math.max(0, screenY - 20) : null
       });
+      return true;
     } catch (e) {
       console.error('Failed to open new window:', e);
       showToast(`Failed to open new window: ${e}`, 'error');
+      return false;
     }
   }
 
   async function handleMoveToNewWindow(tab: Tab, screenX?: number, screenY?: number) {
-    await openNewWindow(tab.filePath, tab, screenX, screenY);
+    const success = await openNewWindow(tab.filePath, tab, screenX, screenY);
+    if (!success) return; // Prevent data loss if new window creation failed
+
     if (tabs.length > 1) {
       tabs = tabs.filter((t) => t.id !== tab.id);
       if (activeTabId === tab.id) {
@@ -582,28 +597,40 @@
 
   async function handleFilesDropped(files: FileList | string[]) {
     if (!files || files.length === 0) return;
+    let openedCount = 0;
     for (let i = 0; i < files.length; i++) {
       const item = files[i];
-      if (typeof item === 'string') {
-        await loadFileIntoTab(item);
-      } else {
-        const path = (item as any).path;
-        if (path) {
-          await loadFileIntoTab(path);
+      try {
+        if (typeof item === 'string') {
+          await loadFileIntoTab(item);
+          openedCount++;
         } else {
-          const ext = item.name.split('.').pop()?.toLowerCase() || '';
-          const isBinary = ['pdf', 'xlsx', 'xls', 'docx', 'doc', 'rtf'].includes(ext);
-          if (isBinary) {
-            const buf = await item.arrayBuffer();
-            createNewTab(null, '', item.name, new Uint8Array(buf));
+          const path = (item as any).path;
+          if (path) {
+            await loadFileIntoTab(path);
+            openedCount++;
           } else {
-            const text = await item.text();
-            createNewTab(null, text, item.name);
+            const ext = item.name.split('.').pop()?.toLowerCase() || '';
+            const isBinary = ['pdf', 'xlsx', 'xls', 'docx', 'doc', 'rtf'].includes(ext);
+            if (isBinary) {
+              const buf = await item.arrayBuffer();
+              createNewTab(null, '', item.name, new Uint8Array(buf));
+              openedCount++;
+            } else {
+              const text = await item.text();
+              createNewTab(null, text, item.name);
+              openedCount++;
+            }
           }
         }
+      } catch (err) {
+        console.error('Failed to open dropped file', err);
+        showToast(`Failed to open dropped file: ${err}`, 'error');
       }
     }
-    showToast(`Opened dropped file${files.length > 1 ? 's' : ''}`, 'success');
+    if (openedCount > 0) {
+      showToast(`Opened dropped file${openedCount > 1 ? 's' : ''}`, 'success');
+    }
   }
 
   function triggerFind() {
@@ -621,14 +648,22 @@
 
     if (activeTab.mode === 'office') {
       if (officeViewerRef?.saveDocument) {
-        await officeViewerRef.saveDocument(forceSaveAs);
+        try {
+          await officeViewerRef.saveDocument(forceSaveAs);
+        } catch (e) {
+          showToast(`${t('error_save')}: ${e}`, 'error');
+        }
       }
       return;
     }
 
     if (activeTab.mode === 'pdf') {
       if (pdfViewerRef?.saveAsCopy) {
-        await pdfViewerRef.saveAsCopy();
+        try {
+          await pdfViewerRef.saveAsCopy();
+        } catch (e) {
+          showToast(`${t('error_save')}: ${e}`, 'error');
+        }
       } else {
         showToast('PDF documents are view-only.', 'error');
       }
@@ -1441,17 +1476,20 @@
                   <span class="crypto-modal-addr" title="UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB">UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB</span>
                   <button
                     class="btn-modal-copy"
+                    class:copied={copiedTon}
                     title="Copy TON Address"
                     onclick={async () => {
                       try {
                         await navigator.clipboard.writeText('UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB');
+                        copiedTon = true;
                         showToast('TON address copied to clipboard!', 'success');
+                        setTimeout(() => { copiedTon = false; }, 2000);
                       } catch (e) {
                         showToast('Failed to copy address', 'error');
                       }
                     }}
                   >
-                    Copy
+                    {copiedTon ? '✓ Copied' : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -1465,17 +1503,20 @@
                   <span class="crypto-modal-addr" title="7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm">7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm</span>
                   <button
                     class="btn-modal-copy"
+                    class:copied={copiedSol}
                     title="Copy Solana Address"
                     onclick={async () => {
                       try {
                         await navigator.clipboard.writeText('7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm');
+                        copiedSol = true;
                         showToast('Solana address copied to clipboard!', 'success');
+                        setTimeout(() => { copiedSol = false; }, 2000);
                       } catch (e) {
                         showToast('Failed to copy address', 'error');
                       }
                     }}
                   >
-                    Copy
+                    {copiedSol ? '✓ Copied' : 'Copy'}
                   </button>
                 </div>
               </div>
@@ -1965,7 +2006,7 @@
   }
 
   .btn-modal-copy {
-    background: var(--button-bg);
+    background: var(--button-hover);
     border: 1px solid var(--border-color);
     color: var(--text-color);
     font-size: 11px;
@@ -1980,6 +2021,12 @@
   .btn-modal-copy:hover {
     background: #0284c7;
     border-color: #0284c7;
+    color: #ffffff;
+  }
+
+  .btn-modal-copy.copied {
+    background: #10b981;
+    border-color: #10b981;
     color: #ffffff;
   }
 
