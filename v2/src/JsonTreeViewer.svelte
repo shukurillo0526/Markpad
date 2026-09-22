@@ -1,16 +1,23 @@
 <script lang="ts">
   import JsonTreeNode from './JsonTreeNode.svelte';
+  import YAML from 'yaml';
 
   let { content = '', extension = '' } = $props<{ content: string; extension: string }>();
 
   let searchQuery = $state('');
 
+  let isYaml = $derived(['yaml', 'yml'].includes(extension.toLowerCase()));
+
   let parsedData = $derived.by(() => {
     try {
       if (!content.trim()) return null;
+      if (isYaml) {
+        return { data: YAML.parse(content), error: null };
+      }
       return { data: JSON.parse(content), error: null };
     } catch (e) {
-      return { data: null, error: `Failed to parse JSON: ${(e as Error).message}` };
+      const format = isYaml ? 'YAML' : 'JSON';
+      return { data: null, error: `Failed to parse ${format}: ${(e as Error).message}` };
     }
   });
 
@@ -22,11 +29,11 @@
 <div class="json-tree-container">
   <div class="json-toolbar">
     <div class="toolbar-left">
-      <span class="toolbar-title">JSON Tree Explorer</span>
+      <span class="toolbar-title">{isYaml ? 'YAML' : 'JSON'} Tree Explorer</span>
       {#if parsedData?.data !== null && !parsedData?.error}
-        <span class="badge">Valid JSON</span>
+        <span class="badge">Valid {isYaml ? 'YAML' : 'JSON'}</span>
       {:else if parsedData?.error}
-        <span class="badge error">Invalid JSON</span>
+        <span class="badge error">Invalid {isYaml ? 'YAML' : 'JSON'}</span>
       {/if}
     </div>
     <div class="toolbar-right">

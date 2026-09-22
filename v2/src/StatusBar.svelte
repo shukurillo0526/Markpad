@@ -57,7 +57,7 @@
     {#if activeMode === 'pdf'}
       <span class="status-item mode-badge pdf-mode">
         <span class="dot pdf-dot"></span>
-        PDF Viewer
+        {t('pdf_viewer')}
       </span>
     {:else}
       <span class="status-item mode-badge" class:dirty={isDirty}>
@@ -147,7 +147,7 @@
       onclick={onOpenFeedback}
       title="Markpad is a free tool — donate or give feedback!"
     >
-      💖 Feedback
+      💖 {t('feedback_btn')}
     </span>
   </div>
 </footer>

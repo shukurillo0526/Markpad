@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
+  import { t } from './i18n.svelte';
 
   let {
     bytes = null,
@@ -460,10 +461,10 @@
         onclick={goToPrevPage}
         title="Previous Page (Left Arrow)"
       >
-        ◀ Prev
+        ◀ {t('prev')}
       </button>
       <div class="page-indicator">
-        <span>Page</span>
+        <span>{t('page')}</span>
         <input
           type="number"
           min="1"
@@ -472,7 +473,7 @@
           onchange={handlePageInput}
           class="page-input"
         />
-        <span>of {totalPages || 1}</span>
+        <span>{t('of')} {totalPages || 1}</span>
       </div>
       <button
         class="tool-btn"
@@ -480,7 +481,7 @@
         onclick={goToNextPage}
         title="Next Page (Right Arrow)"
       >
-        Next ▶
+        {t('next')} ▶
       </button>
     </div>
 
@@ -495,10 +496,10 @@
         🔍+
       </button>
       <button class="tool-btn text-btn" onclick={fitWidth} title="Fit Width">
-        Fit Width
+        {t('fit_width')}
       </button>
       <button class="tool-btn text-btn" onclick={fitPage} title="Fit Page">
-        Fit Page
+        {t('fit_page')}
       </button>
       <button class="tool-btn text-btn" onclick={resetZoom} title="Reset 100%">
         100%
@@ -507,20 +508,20 @@
         🔄
       </button>
       <button class="tool-btn text-btn" onclick={printDocument} title="Print / Export PDF (Ctrl+P)" disabled={loading}>
-        🖨️ Print
+        🖨️ {t('print')}
       </button>
       <button class="tool-btn text-btn" onclick={triggerSearch} title="Find in PDF (Ctrl+F)" disabled={loading}>
-        🔍 Find
+        🔍 {t('find')}
       </button>
       <button class="tool-btn text-btn" onclick={saveAsCopy} title="Save PDF Copy As (Ctrl+S)" disabled={loading}>
-        💾 Save Copy
+        💾 {t('save_copy')}
       </button>
     </div>
 
     <div class="toolbar-divider"></div>
 
     <div class="toolbar-group doc-info">
-      <span class="doc-badge">PDF 100% OFFLINE</span>
+      <span class="doc-badge">{t('pdf_offline_badge')}</span>
     </div>
   </div>
 
@@ -543,16 +544,16 @@
             closePdfFind();
           }
         }}
-        placeholder="Find text in PDF..."
+        placeholder={t('find_in_pdf_ph')}
         class="pdf-find-input"
       />
       <span class="pdf-find-count">
         {#if isSearching}
-          Searching...
+          {t('searching')}
         {:else if pdfFindMatches.length > 0}
-          Page {pdfFindMatches[currentMatchPageIdx]?.pageNum} ({currentMatchPageIdx + 1}/{pdfFindMatches.length} pages, {totalPdfMatches} matches)
+          {t('page')} {pdfFindMatches[currentMatchPageIdx]?.pageNum} ({currentMatchPageIdx + 1}/{pdfFindMatches.length} {t('pages')}, {totalPdfMatches} {t('matches')})
         {:else if pdfFindQuery}
-          0 matches
+          0 {t('matches')}
         {/if}
       </span>
       <button class="pdf-find-btn" onclick={prevPdfMatch} title="Previous matching page (Shift+Enter)">▲</button>
@@ -566,13 +567,13 @@
     {#if loading}
       <div class="center-message">
         <div class="spinner"></div>
-        <span>Rendering PDF Document...</span>
+        <span>{t('rendering_pdf')}</span>
       </div>
     {/if}
 
     {#if errorMsg}
       <div class="error-box">
-        <h3>Unable to display PDF</h3>
+        <h3>{t('unable_display_pdf')}</h3>
         <p>{errorMsg}</p>
       </div>
     {/if}

@@ -25,8 +25,8 @@
     if (['csv', 'tsv'].includes(e)) return 'dataviewer';
     if (['md', 'markdown'].includes(e)) return 'preview';
     if (['html', 'htm', 'svg'].includes(e)) return 'webpreview';
-    if (['json', 'yaml', 'yml'].includes(e)) return 'jsontree';
-    if (['env', 'ini', 'toml', 'conf'].includes(e)) return 'envinspector';
+    if (['json'].includes(e)) return 'jsontree';
+    if (['env', 'ini', 'conf'].includes(e)) return 'envinspector';
     if (['log'].includes(e)) return 'loganalyzer';
     return 'editor';
   }
@@ -139,13 +139,13 @@
     if (!activeTab) return t('plain_text');
     const ext = activeTab.extension.toLowerCase();
     switch (ext) {
-      case 'md': case 'markdown': return 'Markdown';
-      case 'json': return 'JSON';
-      case 'csv': case 'tsv': return 'CSV / Data';
-      case 'pdf': return 'PDF Document';
-      case 'docx': case 'doc': return 'Word Document';
-      case 'xlsx': case 'xls': return 'Excel Workbook';
-      case 'rtf': return 'Rich Text (RTF)';
+      case 'md': case 'markdown': return t('doc_markdown');
+      case 'json': return t('doc_json');
+      case 'csv': case 'tsv': return t('doc_csv');
+      case 'pdf': return t('doc_pdf');
+      case 'docx': case 'doc': return t('doc_word');
+      case 'xlsx': case 'xls': return t('doc_excel');
+      case 'rtf': return t('doc_rtf');
       case 'py': return 'Python';
       case 'js': case 'jsx': return 'JavaScript';
       case 'ts': case 'tsx': return 'TypeScript';
@@ -154,10 +154,10 @@
       case 'css': case 'scss': return 'CSS';
       case 'sql': return 'SQL';
       case 'xml': case 'svg': return 'XML / SVG';
-      case 'yaml': case 'yml': return 'YAML';
-      case 'toml': return 'TOML';
-      case 'env': case 'ini': case 'conf': return 'Config / Env';
-      case 'log': return 'Log File';
+      case 'yaml': case 'yml': return t('doc_yaml');
+      case 'toml': return t('doc_toml');
+      case 'env': case 'ini': case 'conf': return t('doc_config');
+      case 'log': return t('doc_log');
       case 'cpp': case 'c': case 'h': case 'hpp': return 'C/C++';
       default: return t('plain_text');
     }
@@ -1077,7 +1077,7 @@
         </button>
       {/if}
 
-      {#if ['env', 'ini', 'toml', 'conf'].includes(activeTab?.extension.toLowerCase() || '')}
+      {#if ['env', 'ini', 'conf'].includes(activeTab?.extension.toLowerCase() || '')}
         <button class:active={activeTab?.mode === 'envinspector'} onclick={() => setMode('envinspector')}>
           Key-Value
         </button>

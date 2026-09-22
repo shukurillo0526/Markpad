@@ -3,6 +3,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
   import { printToPdf, escapeHtml } from './export';
+  import { t } from './i18n.svelte';
 
   let {
     bytes = null,
@@ -628,7 +629,7 @@
     <!-- ─── Excel Spreadsheet Editor & Viewer ───────────────────────── -->
     <div class="office-toolbar">
       <div class="toolbar-group">
-        <span class="office-badge excel-badge">📗 EXCEL SPREADSHEET</span>
+        <span class="office-badge excel-badge">📗 {t('excel_spreadsheet')}</span>
         <!-- Sheet Selector Tabs -->
         <div class="sheet-tabs-list">
           {#each sheetNames as sheet}
@@ -645,16 +646,16 @@
       </div>
 
       <div class="toolbar-group">
-        <button class="tool-btn" onclick={addRow} title="Add New Row">➕ Row</button>
-        <button class="tool-btn" onclick={addColumn} title="Add New Column">➕ Column</button>
-        <button class="tool-btn" onclick={deleteLastRow} title="Delete Last Row">🗑️ Row</button>
+        <button class="tool-btn" onclick={addRow} title="Add New Row">➕ {t('add_row')}</button>
+        <button class="tool-btn" onclick={addColumn} title="Add New Column">➕ {t('add_col')}</button>
+        <button class="tool-btn" onclick={deleteLastRow} title="Delete Last Row">🗑️ {t('del_row')}</button>
 
         <div class="search-box">
           <input
             bind:this={excelSearchInputEl}
             type="text"
             bind:value={searchQuery}
-            placeholder="Search cells (Ctrl+F)..."
+            placeholder={t('search_cells_ph')}
             class="search-input"
           />
           {#if searchQuery}
@@ -670,13 +671,13 @@
           disabled={saving}
           title="Save Spreadsheet (Ctrl+S)"
         >
-          {saving ? 'Saving...' : '💾 Save'}
+          {saving ? t('saving') : '💾 ' + t('save')}
         </button>
         <button class="tool-btn" onclick={exportCurrentSheetCsv} title="Export current sheet as CSV">
-          📥 Export CSV
+          📥 {t('export_csv')}
         </button>
         <button class="tool-btn" onclick={handleDirectExportPdf} title="Export sheet as PDF">
-          📄 Export PDF
+          📄 {t('export_pdf')}
         </button>
       </div>
     </div>
@@ -685,7 +686,7 @@
     <div class="spreadsheet-view">
       <div class="grid-header-bar">
         <span class="stat-text">
-          Showing {visibleRows.length} of {totalDataRows} rows &bull; {sheetData[0]?.length || 0} columns
+          {t('showing_rows')} {visibleRows.length} {t('of')} {totalDataRows} {t('rows')} &bull; {sheetData[0]?.length || 0} {t('columns')}
         </span>
         {#if totalPages > 1}
           <div class="grid-pagination">
@@ -694,15 +695,15 @@
               disabled={currentPage <= 1}
               onclick={() => (currentPage = Math.max(1, currentPage - 1))}
             >
-              &larr; Prev
+              &larr; {t('prev')}
             </button>
-            <span class="page-info">Page {currentPage} of {totalPages}</span>
+            <span class="page-info">{t('page')} {currentPage} {t('of')} {totalPages}</span>
             <button
               class="page-btn"
               disabled={currentPage >= totalPages}
               onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
             >
-              Next &rarr;
+              {t('next')} &rarr;
             </button>
           </div>
         {/if}
@@ -752,14 +753,14 @@
     <!-- ─── Word Document Rich Text Editor & Reader ─────────────────── -->
     <div class="office-toolbar">
       <div class="toolbar-group">
-        <span class="office-badge word-badge">📘 WORD EDITOR</span>
+        <span class="office-badge word-badge">📘 {t('word_editor')}</span>
         <button
           class="save-btn"
           onclick={() => saveWordDocument(false)}
           disabled={saving}
           title="Save Document (Ctrl+S)"
         >
-          {saving ? 'Saving...' : '💾 Save'}
+          {saving ? t('saving') : '💾 ' + t('save')}
         </button>
       </div>
 
@@ -789,10 +790,10 @@
       </div>
 
       <div class="toolbar-group end-group">
-        <span class="word-stat">{wordCount.toLocaleString()} Words</span>
+        <span class="word-stat">{wordCount.toLocaleString()} {t('words')}</span>
 
         <button class="tool-btn" onclick={toggleWordTheme} title="Toggle Dark/Light Mode">
-          {wordTheme === 'paper' ? '🌙 Dark' : '☀️ Paper'}
+          {wordTheme === 'paper' ? '🌙 ' + t('dark_mode') : '☀️ ' + t('paper_mode')}
         </button>
 
         <div class="font-controls">
@@ -802,13 +803,13 @@
         </div>
 
         <button class="tool-btn" onclick={triggerSearch} title="Find in Document (Ctrl+F)">
-          🔍 Find
+          🔍 {t('find')}
         </button>
         <button class="tool-btn" onclick={copyDocxText} title="Copy Plain Text">
-          📋 Copy
+          📋 {t('copy')}
         </button>
         <button class="tool-btn" onclick={handleDirectExportPdf} title="Export document as PDF">
-          📄 Export PDF
+          📄 {t('export_pdf')}
         </button>
       </div>
     </div>
@@ -828,14 +829,14 @@
               closeWordFind();
             }
           }}
-          placeholder="Find in document..."
+          placeholder={t('find_in_doc_ph')}
           class="word-find-input"
         />
         <span class="word-find-count">
           {#if wordFindMatches.length > 0}
-            {wordFindIndex + 1} of {wordFindMatches.length}
+            {wordFindIndex + 1} {t('of')} {wordFindMatches.length}
           {:else if wordFindQuery}
-            0 matches
+            0 {t('matches')}
           {/if}
         </span>
         <button class="word-find-nav-btn" onclick={prevWordMatch} title="Previous match (Shift+Enter)">▲</button>
