@@ -82,8 +82,23 @@ export function generateStandaloneHtml({ title, htmlContent, isDark = true }: Ex
     th {
       background-color: ${cardBg};
     }
-    footer {
-      margin-top: 60px;
+    .doc-layout {
+      width: 100%;
+      max-width: 850px;
+      margin: 0 auto;
+      border-collapse: collapse;
+      border: none;
+    }
+    .doc-layout td {
+      padding: 0;
+      border: none;
+    }
+    .doc-header-space, .doc-footer-space {
+      display: none;
+    }
+    .screen-footer {
+      max-width: 850px;
+      margin: 60px auto 0 auto;
       padding-top: 20px;
       border-top: 1px solid ${borderColor};
       font-size: 12px;
@@ -106,83 +121,154 @@ export function generateStandaloneHtml({ title, htmlContent, isDark = true }: Ex
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
-      .container {
+      .screen-footer {
+        display: none !important;
+      }
+      .doc-layout {
+        width: 100% !important;
         max-width: 100% !important;
-        padding: 16mm 20mm !important;
+        border-collapse: collapse !important;
+        border: none !important;
+      }
+      .doc-layout td {
+        padding: 0 !important;
+        border: none !important;
+      }
+      .doc-layout > thead {
+        display: table-header-group !important;
+      }
+      .doc-layout > tfoot {
+        display: table-footer-group !important;
+      }
+      .doc-header-space {
+        display: block !important;
+        padding: 12mm 18mm 4mm 18mm !important;
+      }
+      .doc-footer-space {
+        display: block !important;
+        padding: 4mm 18mm 10mm 18mm !important;
+      }
+      .doc-content {
+        display: block !important;
+        padding: 0 18mm !important;
         box-sizing: border-box !important;
       }
       .print-doc-header {
         display: flex !important;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1.5px solid #0f172a;
-        padding-bottom: 8px;
-        margin-bottom: 24px;
-        font-size: 11px;
-        color: #475569;
-        font-weight: 600;
-        letter-spacing: 0.5px;
+        justify-content: space-between !important;
+        align-items: center !important;
+        border-bottom: 1.5px solid #0f172a !important;
+        padding-bottom: 6px !important;
+        margin-bottom: 6px !important;
+        font-size: 11px !important;
+        color: #475569 !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.5px !important;
       }
       .print-doc-header .brand {
-        color: #0284c7;
-        font-weight: 800;
+        color: #0284c7 !important;
+        font-weight: 800 !important;
+      }
+      .print-doc-footer {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        border-top: 1px solid #cbd5e1 !important;
+        padding-top: 6px !important;
+        margin-top: 4px !important;
+        font-size: 10px !important;
+        color: #94a3b8 !important;
       }
       pre {
         border: 1px solid #cbd5e1 !important;
         background: #f8fafc !important;
         color: #0f172a !important;
-        page-break-inside: avoid;
         white-space: pre-wrap !important;
         word-break: break-all !important;
+        overflow: visible !important;
+        overflow-x: visible !important;
+        overflow-y: visible !important;
+        break-inside: auto !important;
+        page-break-inside: auto !important;
+        margin: 0 0 16px 0 !important;
+        padding: 12px 14px !important;
+        border-radius: 6px !important;
+        font-size: 9pt !important;
+        line-height: 1.5 !important;
       }
       code {
         background: #f1f5f9 !important;
         color: #0f172a !important;
+        font-family: 'JetBrains Mono', Consolas, monospace !important;
+        white-space: pre-wrap !important;
+        word-break: break-all !important;
       }
-      table {
-        page-break-inside: avoid;
+      table:not(.doc-layout) {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        break-inside: auto !important;
+        page-break-inside: auto !important;
+        margin: 16px 0 !important;
+      }
+      table:not(.doc-layout) tr {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+      }
+      table:not(.doc-layout) th, table:not(.doc-layout) td {
         border: 1px solid #cbd5e1 !important;
+        padding: 8px 10px !important;
       }
-      th {
+      table:not(.doc-layout) th {
         background: #f1f5f9 !important;
         color: #0f172a !important;
-        border: 1px solid #cbd5e1 !important;
       }
-      td {
-        border: 1px solid #cbd5e1 !important;
-      }
-      .print-doc-footer {
-        display: flex !important;
-        justify-content: space-between;
-        align-items: center;
-        border-top: 1px solid #cbd5e1;
-        padding-top: 10px;
-        margin-top: 36px;
-        font-size: 10px;
-        color: #94a3b8;
-        page-break-inside: avoid;
-      }
-      footer {
-        display: none !important;
+      h1, h2, h3, h4, h5, h6 {
+        break-after: avoid !important;
+        page-break-after: avoid !important;
+        color: #0f172a !important;
       }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="print-doc-header">
-      <span class="brand">MARKPAD NATIVE</span>
-      <span>${escapeHtml(title)}</span>
-    </div>
-    ${htmlContent}
-    <div class="print-doc-footer">
-      <span>Published with Vodiy Markpad Native</span>
-      <span>Enterprise Offline Document</span>
-    </div>
-    <footer>
-      Exported with <strong>Markpad Native v2.0</strong> &bull; Published by Vodiy
-    </footer>
-  </div>
+  <table class="doc-layout">
+    <thead>
+      <tr>
+        <td>
+          <div class="doc-header-space">
+            <div class="print-doc-header">
+              <span class="brand">MARKPAD NATIVE</span>
+              <span>${escapeHtml(title)}</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="doc-content">
+            ${htmlContent}
+          </div>
+        </td>
+      </tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>
+          <div class="doc-footer-space">
+            <div class="print-doc-footer">
+              <span>Published with Vodiy Markpad Native</span>
+              <span>Enterprise Offline Document</span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+  <footer class="screen-footer">
+    Exported with <strong>Markpad Native v2.0</strong> &bull; Published by Vodiy
+  </footer>
 </body>
 </html>`;
 }
