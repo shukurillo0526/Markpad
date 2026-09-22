@@ -1,10 +1,14 @@
 <script lang="ts">
   import { t } from './i18n.svelte';
 
-  let { content = '', extension = '' } = $props();
+  let { content = '', extension = '' } = $props<{ content?: string; extension?: string }>();
 
-  // --- RFC 4180 CSV Parser (handles quoted fields and CRLF) ---
-  function parseCSV(text: string): string[][] {
+  let currentPage = $state(1);
+  const pageSize = 100;
+
+  // --- RFC 4180 CSV/TSV Parser (handles quoted fields, CRLF, and custom delimiters) ---
+  function parseDelimited(text: string, ext: string): string[][] {
+    const delimiter = ext.toLowerCase() === 'tsv' ? '\t' : ',';
     const rows: string[][] = [];
     let currentRow: string[] = [];
     let field = '';
@@ -27,7 +31,7 @@
       } else {
         if (ch === '"') {
           inQuotes = true;
-        } else if (ch === ',') {
+        } else if (ch === delimiter) {
           currentRow.push(field);
           field = '';
         } else if (ch === '\n') {
@@ -50,6 +54,29 @@
     return rows;
   }
 
+  // --- Derived data ---
+  let parsedCsv = $derived.by(() => {
+    if (extension !== 'csv' && extension !== 'tsv') return [];
+    return parseDelimited(content, extension);
+  });
+
+  let totalDataRows = $derived(parsedCsv.length > 1 ? parsedCsv.length - 1 : 0);
+  let totalPages = $derived(Math.max(1, Math.ceil(totalDataRows / pageSize)));
+
+  let visibleRows = $derived.by(() => {
+    if (parsedCsv.length <= 1) return [];
+    const start = 1 + (currentPage - 1) * pageSize;
+    const end = Math.min(parsedCsv.length, start + pageSize);
+    return parsedCsv.slice(start, end);
+  });
+
+  $effect(() => {
+    // Reset page when content/extension changes
+    if (content || extension) {
+      currentPage = 1;
+    }
+  });
+
   // --- Log line parser ---
   function parseLogLines(text: string): { level: string; text: string }[] {
     return text
@@ -65,7 +92,6 @@
       });
   }
 
-  // --- Derived data (Svelte 5 runes) ---
   let parsedJson = $derived.by(() => {
     if (extension !== 'json') return { data: null, error: false };
     try {
@@ -75,8 +101,6 @@
     }
   });
 
-  let parsedCsv = $derived(extension === 'csv' ? parseCSV(content) : []);
-
   let parsedLogs = $derived(extension === 'log' ? parseLogLines(content) : []);
 
   function formatJson(obj: unknown): string {
@@ -85,22 +109,57 @@
 </script>
 
 <div class="data-viewer">
-  {#if extension === 'csv'}
-    <div class="table-container">
-      {#if parsedCsv.length === 0}
-        <div class="empty-state">No data to display</div>
-      {:else}
+  {#if extension === 'csv' || extension === 'tsv'}
+    {#if parsedCsv.length === 0}
+      <div class="empty-state">No data to display</div>
+    {:else}
+      <!-- Pagination Toolbar -->
+      <div class="table-toolbar">
+        <div class="stats">
+          <span><strong>{totalDataRows.toLocaleString()}</strong> rows</span>
+          <span class="divider">&bull;</span>
+          <span><strong>{parsedCsv[0]?.length || 0}</strong> columns</span>
+        </div>
+
+        {#if totalPages > 1}
+          <div class="pagination">
+            <button
+              class="page-btn"
+              disabled={currentPage <= 1}
+              onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+              title="Previous Page"
+            >
+              &larr; Prev
+            </button>
+            <span class="page-info">
+              Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+            </span>
+            <button
+              class="page-btn"
+              disabled={currentPage >= totalPages}
+              onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
+              title="Next Page"
+            >
+              Next &rarr;
+            </button>
+          </div>
+        {/if}
+      </div>
+
+      <div class="table-container">
         <table>
           <thead>
             <tr>
+              <th class="row-num-th">#</th>
               {#each parsedCsv[0] as cell}
                 <th>{cell}</th>
               {/each}
             </tr>
           </thead>
           <tbody>
-            {#each parsedCsv.slice(1) as row}
+            {#each visibleRows as row, idx}
               <tr>
+                <td class="row-num-td">{1 + (currentPage - 1) * pageSize + idx}</td>
                 {#each row as cell}
                   <td>{cell}</td>
                 {/each}
@@ -108,8 +167,8 @@
             {/each}
           </tbody>
         </table>
-      {/if}
-    </div>
+      </div>
+    {/if}
   {:else if extension === 'json'}
     {#if parsedJson.error}
       <div class="error-banner">{t('invalid_json')}</div>
@@ -146,10 +205,10 @@
 
 <style>
   .data-viewer {
-    padding: 20px 40px;
+    padding: 16px 24px;
     height: 100%;
     overflow: auto;
-    font-size: 14px;
+    font-size: 13px;
     box-sizing: border-box;
   }
 
@@ -163,27 +222,102 @@
     font-style: italic;
   }
 
+  /* Table Toolbar */
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: #94a3b8;
+  }
+
+  .stats {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .divider {
+    opacity: 0.5;
+  }
+
+  .pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-btn {
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .page-btn:hover:not(:disabled) {
+    background: #38bdf8;
+    color: #0f172a;
+  }
+
+  .page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .page-info {
+    font-size: 12px;
+  }
+
   /* CSV Table */
   .table-container {
     overflow-x: auto;
     border-radius: 8px;
     border: 1px solid rgba(128, 128, 128, 0.2);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
+
   table {
     width: 100%;
     border-collapse: collapse;
     text-align: left;
+    font-size: 12px;
   }
+
   th {
-    background-color: rgba(128, 128, 128, 0.1);
+    background-color: rgba(128, 128, 128, 0.12);
     font-weight: 600;
-    padding: 10px;
+    padding: 8px 12px;
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
     white-space: nowrap;
+    position: sticky;
+    top: 0;
   }
+
   td {
-    padding: 8px 10px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+    white-space: nowrap;
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  tr:hover td {
+    background-color: rgba(56, 189, 248, 0.05);
+  }
+
+  .row-num-th, .row-num-td {
+    color: #64748b;
+    font-size: 11px;
+    width: 40px;
+    text-align: right;
+    user-select: none;
   }
 
   /* Logs */

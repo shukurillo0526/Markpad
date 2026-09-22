@@ -3,7 +3,8 @@
   import { EditorView, keymap, highlightWhitespace } from '@codemirror/view';
   import { basicSetup } from 'codemirror';
   import { EditorState, Compartment } from '@codemirror/state';
-  import { foldGutter } from '@codemirror/language';
+  import { foldGutter, bracketMatching } from '@codemirror/language';
+  import { closeBrackets } from '@codemirror/autocomplete';
   import { search, searchKeymap, highlightSelectionMatches, openSearchPanel, gotoLine } from '@codemirror/search';
   import { markdown } from '@codemirror/lang-markdown';
   import { json } from '@codemirror/lang-json';
@@ -110,6 +111,9 @@
       doc: content,
       extensions: [
         basicSetup,
+        EditorState.allowMultipleSelections.of(true),
+        bracketMatching(),
+        closeBrackets(),
         foldGutter(),
         search({ top: true }),
         highlightSelectionMatches(),

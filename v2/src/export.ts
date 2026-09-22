@@ -7,6 +7,17 @@ export interface ExportOptions {
   isDark?: boolean;
 }
 
+/**
+ * Escape HTML entities to prevent XSS when injecting user content into HTML templates.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 export function generateStandaloneHtml({ title, htmlContent, isDark = true }: ExportOptions): string {
   const bgColor = isDark ? '#0f172a' : '#ffffff';
   const textColor = isDark ? '#f8fafc' : '#0f172a';
@@ -128,7 +139,7 @@ export function printToPdf(title: string, htmlContent: string) {
   document.body.appendChild(iframe);
 
   const doc = iframe.contentWindow?.document;
-  if (!doc) {
+  if (!doc || !iframe.contentWindow) {
     document.body.removeChild(iframe);
     return;
   }
@@ -140,16 +151,21 @@ export function printToPdf(title: string, htmlContent: string) {
   doc.write(fullHtml);
   doc.close();
 
+  const cleanup = () => {
+    if (document.body.contains(iframe)) {
+      document.body.removeChild(iframe);
+    }
+  };
+
+  // Use afterprint event for reliable cleanup instead of a fixed timeout
+  iframe.contentWindow.addEventListener('afterprint', cleanup);
+
   setTimeout(() => {
     if (iframe.contentWindow) {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     }
-    // Clean up after print dialog closes
-    setTimeout(() => {
-      if (document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
-      }
-    }, 2000);
+    // Fallback cleanup if afterprint doesn't fire (e.g., user cancels quickly)
+    setTimeout(cleanup, 60000);
   }, 300);
 }

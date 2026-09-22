@@ -8,6 +8,11 @@ const BINARY_CHECK_SIZE: usize = 8192; // Check first 8KB
 async fn read_file_content(path: String) -> Result<String, String> {
     let file_path = Path::new(&path);
 
+    // Validate path is absolute to prevent relative path traversal
+    if !file_path.is_absolute() {
+        return Err("Only absolute file paths are allowed.".to_string());
+    }
+
     if !file_path.exists() {
         return Err("File not found.".to_string());
     }
@@ -32,19 +37,36 @@ async fn read_file_content(path: String) -> Result<String, String> {
     let bytes = fs::read(&path).map_err(|e| e.to_string())?;
 
     // Check for binary content (null bytes in first 8KB)
-    let check_len = bytes.len().min(BINARY_CHECK_SIZE);
-    if bytes[..check_len].contains(&0) {
-        return Err("This appears to be a binary file and cannot be opened as text.".to_string());
+    // Skip this check for very small files to avoid false positives
+    if bytes.len() > 4 {
+        let check_len = bytes.len().min(BINARY_CHECK_SIZE);
+        // Check for UTF-16 BOM before rejecting null bytes
+        let is_utf16_bom = (bytes.len() >= 2 && (bytes[0] == 0xFF && bytes[1] == 0xFE))
+            || (bytes.len() >= 2 && (bytes[0] == 0xFE && bytes[1] == 0xFF));
+
+        if !is_utf16_bom && bytes[..check_len].contains(&0) {
+            return Err("This appears to be a binary file and cannot be opened as text.".to_string());
+        }
     }
 
-    // Convert to UTF-8 string
-    String::from_utf8(bytes)
-        .map_err(|_| "File is not valid UTF-8 text. Try a different encoding.".to_string())
+    // Try UTF-8 first, then lossy conversion for other encodings
+    match String::from_utf8(bytes.clone()) {
+        Ok(content) => Ok(content),
+        Err(_) => {
+            // Fallback: lossy UTF-8 conversion (replaces invalid bytes with replacement char)
+            Ok(String::from_utf8_lossy(&bytes).into_owned())
+        }
+    }
 }
 
 #[tauri::command]
 async fn save_file_content(path: String, content: String) -> Result<(), String> {
     let file_path = Path::new(&path);
+
+    // Validate path is absolute
+    if !file_path.is_absolute() {
+        return Err("Only absolute file paths are allowed.".to_string());
+    }
 
     // Ensure parent directory exists
     if let Some(parent) = file_path.parent() {
@@ -53,7 +75,16 @@ async fn save_file_content(path: String, content: String) -> Result<(), String> 
         }
     }
 
-    fs::write(&path, &content).map_err(|e| format!("Failed to save: {}", e))
+    // Atomic save: write to a temporary file first, then rename
+    let tmp_path = format!("{}.markpad_tmp", path);
+    fs::write(&tmp_path, &content).map_err(|e| format!("Failed to save: {}", e))?;
+
+    // Rename the temp file to the target (atomic on most filesystems)
+    fs::rename(&tmp_path, &path).map_err(|e| {
+        // Clean up the temp file if rename fails
+        let _ = fs::remove_file(&tmp_path);
+        format!("Failed to finalize save: {}", e)
+    })
 }
 
 #[tauri::command]

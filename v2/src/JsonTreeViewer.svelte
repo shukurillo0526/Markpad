@@ -1,32 +1,31 @@
 <script lang="ts">
+  import JsonTreeNode from './JsonTreeNode.svelte';
+
   let { content = '', extension = '' } = $props<{ content: string; extension: string }>();
 
   let searchQuery = $state('');
-  let expandDepth = $state(2);
 
   let parsedData = $derived.by(() => {
     try {
       if (!content.trim()) return null;
-      return JSON.parse(content);
+      return { data: JSON.parse(content), error: null };
     } catch (e) {
-      return { _error: `Failed to parse JSON: ${(e as Error).message}` };
+      return { data: null, error: `Failed to parse JSON: ${(e as Error).message}` };
     }
   });
 
-  function getType(val: any): string {
-    if (val === null) return 'null';
-    if (Array.isArray(val)) return 'array';
-    return typeof val;
-  }
+  let isObjectOrArray = $derived(
+    parsedData?.data !== null && typeof parsedData?.data === 'object'
+  );
 </script>
 
 <div class="json-tree-container">
   <div class="json-toolbar">
     <div class="toolbar-left">
-      <span class="toolbar-title">JSON / Data Tree Explorer</span>
-      {#if parsedData && !parsedData._error}
+      <span class="toolbar-title">JSON Tree Explorer</span>
+      {#if parsedData?.data !== null && !parsedData?.error}
         <span class="badge">Valid JSON</span>
-      {:else}
+      {:else if parsedData?.error}
         <span class="badge error">Invalid JSON</span>
       {/if}
     </div>
@@ -37,39 +36,34 @@
         bind:value={searchQuery}
         class="search-input"
       />
-      <button class="tool-btn" onclick={() => (expandDepth = 10)}>Expand All</button>
-      <button class="tool-btn" onclick={() => (expandDepth = 1)}>Collapse All</button>
     </div>
   </div>
 
   <div class="tree-content">
-    {#if !parsedData}
-      <div class="empty-state">No JSON data to display.</div>
-    {:else if parsedData._error}
-      <div class="error-state">{parsedData._error}</div>
+    {#if !parsedData || parsedData.data === null}
+      {#if parsedData?.error}
+        <div class="error-state">
+          <div class="error-header">⚠️ {parsedData.error}</div>
+          <pre class="raw-preview">{content}</pre>
+        </div>
+      {:else}
+        <div class="empty-state">No JSON data to display.</div>
+      {/if}
     {:else}
       <div class="tree-root">
-        {#each Object.entries(parsedData) as [key, val]}
-          <div class="node-row">
-            <span class="key-label">"{key}":</span>
-            {#if getType(val) === 'object' || getType(val) === 'array'}
-              <span class="type-badge {getType(val)}">{getType(val)}[{Object.keys(val || {}).length}]</span>
-              <pre class="inline-preview">{JSON.stringify(val).slice(0, 80)}...</pre>
-            {:else if getType(val) === 'string'}
-              <span class="type-badge string">string</span>
-              <span class="val-string">"{val}"</span>
-            {:else if getType(val) === 'number'}
-              <span class="type-badge number">number</span>
-              <span class="val-number">{val}</span>
-            {:else if getType(val) === 'boolean'}
-              <span class="type-badge boolean">boolean</span>
-              <span class="val-boolean">{val}</span>
-            {:else}
-              <span class="type-badge null">null</span>
-              <span class="val-null">null</span>
-            {/if}
-          </div>
-        {/each}
+        {#if isObjectOrArray}
+          {#if Array.isArray(parsedData.data)}
+            {#each parsedData.data as item, idx}
+              <JsonTreeNode keyName={idx} value={item} depth={0} {searchQuery} />
+            {/each}
+          {:else}
+            {#each Object.entries(parsedData.data) as [key, val]}
+              <JsonTreeNode keyName={key} value={val} depth={0} {searchQuery} />
+            {/each}
+          {/if}
+        {:else}
+          <JsonTreeNode keyName="value" value={parsedData.data} depth={0} {searchQuery} />
+        {/if}
       </div>
     {/if}
   </div>
@@ -91,17 +85,18 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 38px;
+    height: 42px;
     padding: 0 16px;
     background: #1e293b;
     border-bottom: 1px solid #334155;
     user-select: none;
+    flex-shrink: 0;
   }
 
   .toolbar-left, .toolbar-right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
 
   .toolbar-title {
@@ -127,77 +122,55 @@
     background: #0f172a;
     border: 1px solid #475569;
     color: #f8fafc;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
     outline: none;
-    width: 180px;
+    width: 220px;
   }
 
-  .tool-btn {
-    background: transparent;
-    border: 1px solid #475569;
-    color: #cbd5e1;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    cursor: pointer;
-  }
-
-  .tool-btn:hover {
-    background: #334155;
-    color: #f8fafc;
+  .search-input:focus {
+    border-color: #38bdf8;
   }
 
   .tree-content {
     flex: 1;
     overflow: auto;
-    padding: 20px;
+    padding: 16px 20px;
   }
 
-  .empty-state, .error-state {
+  .tree-root {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .empty-state {
     color: #94a3b8;
     padding: 20px;
+    font-style: italic;
   }
 
   .error-state {
-    color: #f87171;
+    padding: 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 6px;
+    margin: 16px;
   }
 
-  .node-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 8px;
-    border-radius: 4px;
-  }
-
-  .node-row:hover {
-    background: #1e293b;
-  }
-
-  .key-label {
-    color: #38bdf8;
+  .error-header {
+    color: #ef4444;
     font-weight: 600;
+    margin-bottom: 8px;
   }
 
-  .type-badge {
-    font-size: 10px;
-    padding: 1px 4px;
-    border-radius: 3px;
-    font-weight: 700;
-    text-transform: uppercase;
+  .raw-preview {
+    color: #cbd5e1;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
   }
-
-  .type-badge.string { background: #065f46; color: #34d399; }
-  .type-badge.number { background: #1e3a8a; color: #60a5fa; }
-  .type-badge.boolean { background: #581c87; color: #c084fc; }
-  .type-badge.null { background: #374151; color: #9ca3af; }
-  .type-badge.object, .type-badge.array { background: #78350f; color: #fbbf24; }
-
-  .val-string { color: #34d399; }
-  .val-number { color: #60a5fa; }
-  .val-boolean { color: #c084fc; }
-  .val-null { color: #9ca3af; }
-  .inline-preview { margin: 0; color: #64748b; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

@@ -3,6 +3,7 @@
 
   let severityFilter = $state<'ALL' | 'ERROR' | 'WARN' | 'INFO' | 'DEBUG'>('ALL');
   let searchQuery = $state('');
+  let displayLimit = $state(1000);
 
   interface LogLine {
     id: number;
@@ -10,11 +11,14 @@
     level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG' | 'OTHER';
   }
 
+  const MAX_PARSE_LINES = 50000;
+
   let parsedLines = $derived.by(() => {
     const raw = content.split('\n');
+    const limit = Math.min(raw.length, MAX_PARSE_LINES);
     const result: LogLine[] = [];
 
-    for (let i = 0; i < raw.length; i++) {
+    for (let i = 0; i < limit; i++) {
       const line = raw[i];
       if (!line) continue;
 
@@ -55,27 +59,44 @@
       return true;
     });
   });
+
+  let visibleLines = $derived(filteredLines.slice(0, displayLimit));
+
+  $effect(() => {
+    // Reset limit when filter or search changes
+    if (severityFilter || searchQuery) {
+      displayLimit = 1000;
+    }
+  });
+
+  function loadMore() {
+    displayLimit += 1000;
+  }
+
+  function loadAll() {
+    displayLimit = filteredLines.length;
+  }
 </script>
 
 <div class="log-analyzer-container">
   <div class="log-toolbar">
     <div class="toolbar-left">
-      <span class="toolbar-title">Log Analyzer & Severity Filter</span>
+      <span class="toolbar-title">Log Analyzer</span>
       <div class="severity-pills">
         <button class="pill" class:active={severityFilter === 'ALL'} onclick={() => (severityFilter = 'ALL')}>
-          ALL <span class="pill-count">{counts.total}</span>
+          ALL <span class="pill-count">{counts.total.toLocaleString()}</span>
         </button>
         <button class="pill error" class:active={severityFilter === 'ERROR'} onclick={() => (severityFilter = 'ERROR')}>
-          ERROR <span class="pill-count">{counts.err}</span>
+          ERROR <span class="pill-count">{counts.err.toLocaleString()}</span>
         </button>
         <button class="pill warn" class:active={severityFilter === 'WARN'} onclick={() => (severityFilter = 'WARN')}>
-          WARN <span class="pill-count">{counts.warn}</span>
+          WARN <span class="pill-count">{counts.warn.toLocaleString()}</span>
         </button>
         <button class="pill info" class:active={severityFilter === 'INFO'} onclick={() => (severityFilter = 'INFO')}>
-          INFO <span class="pill-count">{counts.info}</span>
+          INFO <span class="pill-count">{counts.info.toLocaleString()}</span>
         </button>
         <button class="pill debug" class:active={severityFilter === 'DEBUG'} onclick={() => (severityFilter = 'DEBUG')}>
-          DEBUG <span class="pill-count">{counts.debug}</span>
+          DEBUG <span class="pill-count">{counts.debug.toLocaleString()}</span>
         </button>
       </div>
     </div>
@@ -91,13 +112,23 @@
   </div>
 
   <div class="log-body">
-    {#each filteredLines as line (line.id)}
+    {#each visibleLines as line (line.id)}
       <div class="log-row" class:row-error={line.level === 'ERROR'} class:row-warn={line.level === 'WARN'}>
         <span class="line-num">{line.id}</span>
         <span class="level-badge {line.level.toLowerCase()}">{line.level}</span>
         <span class="log-text">{line.text}</span>
       </div>
     {/each}
+
+    {#if filteredLines.length > displayLimit}
+      <div class="load-more-bar">
+        <span>Showing {displayLimit.toLocaleString()} of {filteredLines.length.toLocaleString()} matching lines</span>
+        <div class="load-btns">
+          <button class="load-btn" onclick={loadMore}>Load +1,000 More</button>
+          <button class="load-btn" onclick={loadAll}>Show All</button>
+        </div>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -122,6 +153,7 @@
     background: #1e293b;
     border-bottom: 1px solid #334155;
     user-select: none;
+    flex-shrink: 0;
   }
 
   .toolbar-left, .toolbar-right {
@@ -171,17 +203,21 @@
     background: #0f172a;
     border: 1px solid #475569;
     color: #f8fafc;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
     outline: none;
-    width: 200px;
+    width: 220px;
+  }
+
+  .search-input:focus {
+    border-color: #38bdf8;
   }
 
   .log-body {
     flex: 1;
     overflow: auto;
-    padding: 10px 0;
+    padding: 8px 0;
   }
 
   .log-row {
@@ -207,7 +243,7 @@
 
   .line-num {
     color: #475569;
-    min-width: 36px;
+    min-width: 44px;
     text-align: right;
     user-select: none;
   }
@@ -219,6 +255,7 @@
     border-radius: 3px;
     min-width: 44px;
     text-align: center;
+    user-select: none;
   }
 
   .level-badge.error { background: #ef4444; color: white; }
@@ -231,5 +268,40 @@
     flex: 1;
     white-space: pre-wrap;
     word-break: break-all;
+  }
+
+  .load-more-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    margin: 12px 16px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #94a3b8;
+    font-size: 12px;
+  }
+
+  .load-btns {
+    display: flex;
+    gap: 8px;
+  }
+
+  .load-btn {
+    background: #0f172a;
+    border: 1px solid #475569;
+    color: #38bdf8;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .load-btn:hover {
+    background: #38bdf8;
+    color: #0f172a;
   }
 </style>

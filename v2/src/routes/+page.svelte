@@ -14,7 +14,7 @@
   import TabBar, { type Tab } from '../TabBar.svelte';
   import StatusBar from '../StatusBar.svelte';
   import { t, getLocale, setLocale, type LocaleKey } from '../i18n.svelte';
-  import { exportAsHtml, generateStandaloneHtml, printToPdf } from '../export';
+  import { exportAsHtml, generateStandaloneHtml, printToPdf, escapeHtml } from '../export';
 
   function getDefaultModeForExt(ext: string): Tab['mode'] {
     const e = ext.toLowerCase();
@@ -97,7 +97,7 @@
   });
 
   let activeFileSize = $derived.by(() => {
-    return activeTab ? new Blob([activeTab.content]).size : 0;
+    return activeTab ? new TextEncoder().encode(activeTab.content).byteLength : 0;
   });
 
   let activeLanguage = $derived.by(() => {
@@ -138,21 +138,21 @@
   // ─── Export Actions ──────────────────────────────────────────────────
   async function handleExportHtml() {
     if (!activeTab) return;
-    const htmlToExport = parsedHtml || `<pre><code>${activeTab.content}</code></pre>`;
+    const htmlToExport = parsedHtml || `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`;
     const ok = await exportAsHtml(activeTab.title, htmlToExport, isDarkMode);
     if (ok) showToast('Exported Standalone HTML successfully', 'success');
   }
 
   function handleExportPdf() {
     if (!activeTab) return;
-    const htmlToExport = parsedHtml || `<pre><code>${activeTab.content}</code></pre>`;
+    const htmlToExport = parsedHtml || `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`;
     printToPdf(activeTab.title, htmlToExport);
     showToast('Opening PDF Print Engine...', 'success');
   }
 
   async function handleCopyHtmlToClipboard() {
     if (!activeTab) return;
-    const htmlToCopy = parsedHtml || generateStandaloneHtml({ title: activeTab.title, htmlContent: `<pre><code>${activeTab.content}</code></pre>`, isDark: isDarkMode });
+    const htmlToCopy = parsedHtml || generateStandaloneHtml({ title: activeTab.title, htmlContent: `<pre><code>${escapeHtml(activeTab.content)}</code></pre>`, isDark: isDarkMode });
     try {
       await navigator.clipboard.writeText(htmlToCopy);
       showToast('HTML copied to clipboard', 'success');
@@ -210,20 +210,30 @@
 
   function saveSession() {
     try {
+      const maxContentLen = 500_000;
       const sessionData = {
         activeTabId,
         tabs: tabs.map((t) => ({
           id: t.id,
           title: t.title,
           filePath: t.filePath,
-          content: t.filePath ? '' : t.content,
+          content: t.filePath ? '' : (t.content.length > maxContentLen ? t.content.slice(0, maxContentLen) : t.content),
           isDirty: t.isDirty,
           extension: t.extension,
           pinned: t.pinned,
           mode: t.mode
         }))
       };
-      localStorage.setItem('markpad-session', JSON.stringify(sessionData));
+      try {
+        localStorage.setItem('markpad-session', JSON.stringify(sessionData));
+      } catch (quotaErr) {
+        console.warn('LocalStorage quota exceeded, saving minimal session:', quotaErr);
+        const minimalSession = {
+          ...sessionData,
+          tabs: sessionData.tabs.map((t) => ({ ...t, content: '' }))
+        };
+        localStorage.setItem('markpad-session', JSON.stringify(minimalSession));
+      }
     } catch (e) {
       console.error('Failed to save session', e);
     }
@@ -652,8 +662,10 @@
       >
         <option value="en">EN</option>
         <option value="zh">ZH</option>
-        <option value="ru">RU</option>
+        <option value="es">ES</option>
+        <option value="ja">JA</option>
         <option value="ko">KO</option>
+        <option value="ru">RU</option>
         <option value="uz">UZ</option>
       </select>
 

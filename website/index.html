@@ -5,15 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Markpad Native - The VLC of Text Files</title>
     <meta name="description" content="Markpad Native is a blazing-fast, lightweight text and code editor built specifically for performance. Instantly open, parse, and perfectly format any text or data file you throw at it—completely offline.">
+    
+    <meta property="og:title" content="Markpad Native - The VLC of Text Files" />
+    <meta property="og:description" content="Markpad Native is a blazing-fast, lightweight text and code editor built specifically for performance." />
+    <meta property="og:image" content="./favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://shukurillo0526.github.io/Markpad/" />
+    
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Markpad Native - The VLC of Text Files" />
+    <meta name="twitter:description" content="Markpad Native is a blazing-fast, lightweight text and code editor built specifically for performance." />
+    
+    <link rel="canonical" href="https://shukurillo0526.github.io/Markpad/" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./style.css">
   </head>
   <body>
     <!-- Background Elements -->
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
+    <div class="blob blob-1" aria-hidden="true"></div>
+    <div class="blob blob-2" aria-hidden="true"></div>
     
     <header>
       <div class="container nav-container">
@@ -48,7 +61,7 @@
             </a>
 
             <!-- Direct EXE Button -->
-            <a href="./downloads/Markpad_Native_1.0.1_x64-setup.exe" id="download-exe-btn" class="btn btn-secondary" download>
+            <a href="./downloads/Markpad_Native_1.1.0_x64-setup.exe" id="download-exe-btn" class="btn btn-secondary" download>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
@@ -63,8 +76,38 @@
         </div>
       </section>
 
+      <!-- App Screenshot Section -->
+      <section class="app-screenshot container animate-on-scroll">
+        <div class="mockup-window">
+          <div class="mockup-header">
+            <div class="mockup-buttons">
+              <span class="mockup-btn close"></span>
+              <span class="mockup-btn minimize"></span>
+              <span class="mockup-btn maximize"></span>
+            </div>
+            <div class="mockup-title">readme.md - Markpad Native</div>
+          </div>
+          <div class="mockup-body">
+            <div class="line"><span class="keyword">#</span> Markpad Native</div>
+            <div class="line"></div>
+            <div class="line">The <strong>VLC</strong> of text files. A blazing-fast editor for the modern web.</div>
+            <div class="line"></div>
+            <div class="line"><span class="keyword">##</span> Features</div>
+            <div class="line"><span class="bullet">-</span> <span class="string">🚀 Instant startup</span></div>
+            <div class="line"><span class="bullet">-</span> <span class="string">🔒 100% Offline</span></div>
+            <div class="line"><span class="bullet">-</span> <span class="string">📊 Smart formatting</span></div>
+            <div class="line"></div>
+            <div class="line"><span class="comment">```rust</span></div>
+            <div class="line"><span class="keyword">fn</span> <span class="function">main</span>() {</div>
+            <div class="line">    <span class="macro">println!</span>(<span class="string">"Hello, Markpad!"</span>);</div>
+            <div class="line">}</div>
+            <div class="line"><span class="comment">```</span></div>
+          </div>
+        </div>
+      </section>
+
       <!-- Features Section -->
-      <section id="features" class="features container">
+      <section id="features" class="features container animate-on-scroll">
         <h2 class="section-title">Designed for Performance</h2>
         <div class="features-grid">
           
@@ -98,14 +141,86 @@
 
         </div>
       </section>
+
+      <!-- Supported File Types Section -->
+      <section class="file-types container animate-on-scroll">
+        <h2 class="section-title">Supports Every Format</h2>
+        <div class="file-types-grid">
+          <div class="file-badge">📄 .md</div>
+          <div class="file-badge">📦 .json</div>
+          <div class="file-badge">📊 .csv</div>
+          <div class="file-badge">⚙️ .yaml</div>
+          <div class="file-badge">📝 .xml</div>
+          <div class="file-badge">🌐 .html</div>
+          <div class="file-badge">🎨 .css</div>
+          <div class="file-badge">📜 .js</div>
+          <div class="file-badge">📘 .ts</div>
+          <div class="file-badge">🐍 .py</div>
+          <div class="file-badge">🦀 .rs</div>
+          <div class="file-badge">🗄️ .sql</div>
+          <div class="file-badge">📋 .log</div>
+          <div class="file-badge">🔐 .env</div>
+          <div class="file-badge">🔧 .ini</div>
+          <div class="file-badge">⚙️ .toml</div>
+          <div class="file-badge">📃 .txt</div>
+        </div>
+      </section>
+
+      <!-- Global Stats Section -->
+      <section class="global-stats container animate-on-scroll">
+        <div class="stats-container">
+          <div class="stat-item">
+            <h3 class="stat-number" data-target="225">0</h3><span class="stat-plus">+</span>
+            <p class="stat-label">Installs</p>
+          </div>
+          <div class="stat-item">
+            <h3 class="stat-number" data-target="44">0</h3>
+            <p class="stat-label">Countries</p>
+          </div>
+          <div class="stat-item">
+            <h3 class="stat-number" data-target="7">0</h3>
+            <p class="stat-label">Languages</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom CTA Section -->
+      <section class="bottom-cta container animate-on-scroll">
+        <h2 class="section-title">Ready to try the fastest text editor?</h2>
+        <div class="cta-group">
+          <!-- Microsoft Store Button -->
+          <a href="https://apps.microsoft.com/detail/9NRCZSC4800K" target="_blank" class="btn btn-primary store-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.4 24H0V11.4h11.4V24zM24 24H12.6V11.4H24V24zM11.4 10.6H0V0h11.4v10.6zM24 10.6H12.6V0H24v10.6z"/>
+            </svg>
+            <div class="btn-text">
+              <span>Get it from</span>
+              <strong>Microsoft Store</strong>
+            </div>
+          </a>
+
+          <!-- Direct EXE Button -->
+          <a href="./downloads/Markpad_Native_1.1.0_x64-setup.exe" class="btn btn-secondary" download>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <div class="btn-text">
+              <span>Download directly</span>
+              <strong>Windows (.exe)</strong>
+            </div>
+          </a>
+        </div>
+      </section>
     </main>
 
     <footer>
       <div class="container footer-content">
-        <p>&copy; 2026 Vodiy. All rights reserved.</p>
+        <p>&copy; 2026 Vodiy. All rights reserved. <span class="license-text">MIT License</span></p>
         <div class="footer-links">
           <a href="https://github.com/shukurillo0526/Markpad" target="_blank">GitHub</a>
-          <a href="#">Privacy Policy</a>
+          <a href="https://github.com/shukurillo0526/Markpad/blob/main/PRIVACY.md" target="_blank">Privacy Policy</a>
         </div>
       </div>
     </footer>
