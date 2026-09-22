@@ -116,9 +116,9 @@
       <!-- Pagination Toolbar -->
       <div class="table-toolbar">
         <div class="stats">
-          <span><strong>{totalDataRows.toLocaleString()}</strong> rows</span>
+          <span><strong>{totalDataRows.toLocaleString()}</strong> {t('rows')}</span>
           <span class="divider">&bull;</span>
-          <span><strong>{parsedCsv[0]?.length || 0}</strong> columns</span>
+          <span><strong>{parsedCsv[0]?.length || 0}</strong> {t('columns')}</span>
         </div>
 
         {#if totalPages > 1}
@@ -129,10 +129,10 @@
               onclick={() => (currentPage = Math.max(1, currentPage - 1))}
               title="Previous Page"
             >
-              &larr; Prev
+              &larr; {t('prev')}
             </button>
             <span class="page-info">
-              Page <strong>{currentPage}</strong> of <strong>{totalPages}</strong>
+              {t('page')} <strong>{currentPage}</strong> {t('of')} <strong>{totalPages}</strong>
             </span>
             <button
               class="page-btn"
@@ -140,7 +140,7 @@
               onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
               title="Next Page"
             >
-              Next &rarr;
+              {t('next')} &rarr;
             </button>
           </div>
         {/if}

@@ -1055,7 +1055,7 @@
       
       {#if activeTab?.extension === 'csv' || activeTab?.extension === 'tsv'}
         <button class:active={activeTab?.mode === 'dataviewer'} onclick={() => setMode('dataviewer')}>
-          Data Table
+          {t('mode_datatable')}
         </button>
       {/if}
 
@@ -1067,25 +1067,25 @@
 
       {#if ['html', 'htm', 'svg'].includes(activeTab?.extension.toLowerCase() || '')}
         <button class:active={activeTab?.mode === 'webpreview'} onclick={() => setMode('webpreview')}>
-          Web Preview
+          {t('mode_webpreview')}
         </button>
       {/if}
 
       {#if ['json', 'yaml', 'yml'].includes(activeTab?.extension.toLowerCase() || '')}
         <button class:active={activeTab?.mode === 'jsontree'} onclick={() => setMode('jsontree')}>
-          Tree View
+          {t('mode_treeview')}
         </button>
       {/if}
 
       {#if ['env', 'ini', 'conf'].includes(activeTab?.extension.toLowerCase() || '')}
         <button class:active={activeTab?.mode === 'envinspector'} onclick={() => setMode('envinspector')}>
-          Key-Value
+          {t('mode_keyvalue')}
         </button>
       {/if}
 
       {#if activeTab?.extension.toLowerCase() === 'log'}
         <button class:active={activeTab?.mode === 'loganalyzer'} onclick={() => setMode('loganalyzer')}>
-          Log Filter
+          {t('mode_logfilter')}
         </button>
       {/if}
     </div>

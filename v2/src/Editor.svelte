@@ -5,7 +5,7 @@
   import { EditorState, Compartment } from '@codemirror/state';
   import { foldGutter, bracketMatching } from '@codemirror/language';
   import { closeBrackets } from '@codemirror/autocomplete';
-  import { search, searchKeymap, highlightSelectionMatches, openSearchPanel, gotoLine } from '@codemirror/search';
+  import { search, searchKeymap, highlightSelectionMatches, openSearchPanel, closeSearchPanel, gotoLine } from '@codemirror/search';
   import { markdown } from '@codemirror/lang-markdown';
   import { json } from '@codemirror/lang-json';
   import { yaml } from '@codemirror/lang-yaml';
@@ -18,6 +18,7 @@
   import { rust } from '@codemirror/lang-rust';
   import { cpp } from '@codemirror/lang-cpp';
   import { oneDark } from '@codemirror/theme-one-dark';
+  import { getLocale, getEditorPhrases } from './i18n.svelte';
 
   interface Props {
     content: string;
@@ -50,6 +51,7 @@
   const readOnlyConf = new Compartment();
   const wordWrapConf = new Compartment();
   const invisiblesConf = new Compartment();
+  const phrasesConf = new Compartment();
 
   // Smart language detection
   function getLanguageExtension(ext: string) {
@@ -123,6 +125,7 @@
         readOnlyConf.of(EditorState.readOnly.of(readOnly)),
         wordWrapConf.of(wordWrap ? EditorView.lineWrapping : []),
         invisiblesConf.of(showInvisibles ? highlightWhitespace() : []),
+        phrasesConf.of(EditorState.phrases.of(getEditorPhrases(getLocale()))),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !readOnly) {
             const newContent = update.state.doc.toString();
@@ -218,6 +221,21 @@
     const inv = showInvisibles ? highlightWhitespace() : [];
     if (view) {
       view.dispatch({ effects: invisiblesConf.reconfigure(inv) });
+    }
+  });
+
+  // Hot-swap localization phrases for CodeMirror (search panel, goto line, announcements)
+  $effect(() => {
+    const loc = getLocale();
+    if (view) {
+      view.dispatch({
+        effects: phrasesConf.reconfigure(EditorState.phrases.of(getEditorPhrases(loc)))
+      });
+      // If the search panel is currently open, refresh it so new language shows immediately
+      if (editorContainer?.querySelector('.cm-search')) {
+        closeSearchPanel(view);
+        openSearchPanel(view);
+      }
     }
   });
 
