@@ -1427,6 +1427,60 @@
               <div class="fb-arrow">↗</div>
             </button>
           </div>
+
+          <!-- Crypto Donations -->
+          <div class="crypto-modal-section">
+            <div class="crypto-modal-title">💎 Crypto Donations (1-Click Copy)</div>
+            <div class="crypto-modal-cards">
+              <div class="crypto-modal-card">
+                <div class="crypto-modal-meta">
+                  <span class="crypto-coin-badge ton-badge">TON</span>
+                  <span class="crypto-coin-sub">The Open Network</span>
+                </div>
+                <div class="crypto-modal-addr-row">
+                  <span class="crypto-modal-addr" title="UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB">UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB</span>
+                  <button
+                    class="btn-modal-copy"
+                    title="Copy TON Address"
+                    onclick={async () => {
+                      try {
+                        await navigator.clipboard.writeText('UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB');
+                        showToast('TON address copied to clipboard!', 'success');
+                      } catch (e) {
+                        showToast('Failed to copy address', 'error');
+                      }
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div class="crypto-modal-card">
+                <div class="crypto-modal-meta">
+                  <span class="crypto-coin-badge sol-badge">SOL</span>
+                  <span class="crypto-coin-sub">Solana Network</span>
+                </div>
+                <div class="crypto-modal-addr-row">
+                  <span class="crypto-modal-addr" title="7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm">7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm</span>
+                  <button
+                    class="btn-modal-copy"
+                    title="Copy Solana Address"
+                    onclick={async () => {
+                      try {
+                        await navigator.clipboard.writeText('7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm');
+                        showToast('Solana address copied to clipboard!', 'success');
+                      } catch (e) {
+                        showToast('Failed to copy address', 'error');
+                      }
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1752,7 +1806,8 @@
 
   /* Feedback & Support Modal */
   .feedback-modal-box {
-    width: 480px;
+    width: 520px;
+    max-width: 90vw;
   }
 
   .feedback-intro {
@@ -1824,6 +1879,108 @@
   .fb-arrow {
     font-size: 16px;
     color: #94a3b8;
+  }
+
+  /* Crypto in Feedback Modal */
+  .crypto-modal-section {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .crypto-modal-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 8px;
+  }
+
+  .crypto-modal-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .crypto-modal-card {
+    background: var(--button-hover);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .crypto-modal-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .crypto-coin-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+
+  .ton-badge {
+    background: rgba(0, 152, 234, 0.2);
+    color: #38bdf8;
+    border: 1px solid rgba(0, 152, 234, 0.4);
+  }
+
+  .sol-badge {
+    background: rgba(153, 69, 255, 0.2);
+    color: #c084fc;
+    border: 1px solid rgba(153, 69, 255, 0.4);
+  }
+
+  .crypto-coin-sub {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 500;
+  }
+
+  .crypto-modal-addr-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+  }
+
+  .crypto-modal-addr {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 11px;
+    color: var(--text-color);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    user-select: all;
+  }
+
+  .btn-modal-copy {
+    background: var(--button-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .btn-modal-copy:hover {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
   }
 
   /* Toasts */

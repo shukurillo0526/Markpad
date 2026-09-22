@@ -47,6 +47,8 @@ npm run dev
 Markpad is a 100% free and open-source tool with zero paywalls, subscriptions, or ads. If you love Markpad and want to support our journey:
 
 - ☕ **[Buy Me a Coffee](https://buymeacoffee.com/shukurillokh)** — Donate and support ongoing development
+- 💎 **TON (The Open Network)**: `UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB`
+- ⚡ **Solana (SOL)**: `7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm`
 - 💬 **[Give Feedback & Rating Survey](https://docs.google.com/forms/d/e/1FAIpQLSekDrj5FJL30WB11xkq4FUtnseJFCsp5yQda54XHllHuN9xnQ/viewform)** — Share your opinions, feature requests, or ratings
 - ⭐ **Star this repository** on GitHub to help more people discover Markpad
 

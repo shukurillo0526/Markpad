@@ -45,4 +45,27 @@ document.addEventListener('DOMContentLoaded', () => {
     el.classList.add('animate-hidden');
     observer.observe(el);
   });
+
+  // Crypto copy-to-clipboard handler
+  const cryptoButtons = document.querySelectorAll('.btn-crypto-copy');
+  cryptoButtons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const address = btn.getAttribute('data-address');
+      if (!address) return;
+      try {
+        await navigator.clipboard.writeText(address);
+        const label = btn.querySelector('.copy-label');
+        const origText = label ? label.textContent : 'Copy';
+        btn.classList.add('copied');
+        if (label) label.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (label) label.textContent = origText;
+        }, 2000);
+      } catch (err) {
+        console.error('Failed to copy to clipboard:', err);
+      }
+    });
+  });
 });
+
