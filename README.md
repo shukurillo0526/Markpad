@@ -42,5 +42,13 @@ npm install
 npm run dev
 ```
 
+## 💖 Support & Community Feedback
+
+Markpad is a 100% free and open-source tool with zero paywalls, subscriptions, or ads. If you love Markpad and want to support our journey:
+
+- ☕ **[Buy Me a Coffee](https://buymeacoffee.com/shukurillokh)** — Donate and support ongoing development
+- 💬 **[Give Feedback & Rating Survey](https://docs.google.com/forms/d/e/1FAIpQLSekDrj5FJL30WB11xkq4FUtnseJFCsp5yQda54XHllHuN9xnQ/viewform)** — Share your opinions, feature requests, or ratings
+- ⭐ **Star this repository** on GitHub to help more people discover Markpad
+
 ## 📄 License
 © 2026 Vodiy. All rights reserved.

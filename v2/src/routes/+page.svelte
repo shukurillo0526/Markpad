@@ -1401,12 +1401,12 @@
               class="feedback-card feedback-card-donate"
               onclick={() => {
                 showFeedbackModal = false;
-                openExternalUrl('https://github.com/sponsors/shukurillo0526');
+                openExternalUrl('https://buymeacoffee.com/shukurillokh');
               }}
             >
-              <div class="fb-icon">💖</div>
+              <div class="fb-icon">☕</div>
               <div class="fb-details">
-                <div class="fb-title">Donate / Sponsor</div>
+                <div class="fb-title">Buy Me a Coffee / Donate</div>
                 <div class="fb-desc">Support ongoing development and improvements as you like</div>
               </div>
               <div class="fb-arrow">↗</div>
