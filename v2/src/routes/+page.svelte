@@ -13,7 +13,7 @@
   import LogAnalyzer from '../LogAnalyzer.svelte';
   import TabBar, { type Tab } from '../TabBar.svelte';
   import StatusBar from '../StatusBar.svelte';
-  import { t, getLocale, cycleLocale } from '../i18n.svelte';
+  import { t, getLocale, setLocale } from '../i18n.svelte';
   import { exportAsHtml, generateStandaloneHtml, printToPdf } from '../export';
 
   function getDefaultModeForExt(ext: string): Tab['mode'] {
@@ -654,14 +654,19 @@
         {themePreference === 'system' ? '💻' : themePreference === 'dark' ? '🌙' : '☀️'}
       </button>
 
-      <button
-        onclick={cycleLocale}
+      <select
+        value={getLocale()}
+        onchange={(e) => setLocale(e.currentTarget.value)}
         class="icon-btn"
-        style="text-transform: uppercase; font-weight: 600;"
+        style="text-transform: uppercase; font-weight: 600; appearance: none; background: transparent; border: none; outline: none; cursor: pointer; text-align: center;"
         title="Switch Language"
       >
-        {getLocale()}
-      </button>
+        <option value="en">EN</option>
+        <option value="ru">RU</option>
+        <option value="uz">UZ</option>
+        <option value="zh">ZH</option>
+        <option value="ko">KO</option>
+      </select>
 
       <div class="divider"></div>
 

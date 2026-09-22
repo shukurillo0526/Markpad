@@ -271,11 +271,7 @@ export function setLocale(l: LocaleKey): void {
   }
 }
 
-export function cycleLocale(): void {
-  const order: LocaleKey[] = ['en', 'ru', 'uz', 'zh', 'ko'];
-  const idx = order.indexOf(_locale);
-  setLocale(order[(idx + 1) % order.length]);
-}
+
 
 /**
  * Returns the translated string for the given key.
