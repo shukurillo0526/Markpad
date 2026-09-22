@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "Markpad Native",
+    "version": "2.0.0",
+    "publisher": "Vodiy",
+    "license": "MIT",
+    "website": "https://shukurillo0526.github.io/Markpad/",
+    "repository": "https://github.com/shukurillo0526/Markpad"
+  },
+  "features": {
+    "multiWindow": {
+      "enabled": true,
+      "bidirectionalTabDrag": true,
+      "liveInsertionPreview": true,
+      "dropBanner": true
+    },
+    "performance": {
+      "maxFileSizeMB": 50,
+      "memoryMappedThresholdMB": 5,
+      "hardwareAcceleration": true,
+      "smoothScrolling": true
+    },
+    "editor": {
+      "defaultFontFamily": "Fira Code, Consolas, monospace",
+      "fontSize": 14,
+      "tabSize": 2,
+      "wordWrap": false,
+      "showInvisibles": false,
+      "theme": "dark",
+      "lineEndings": "CRLF",
+      "defaultEncoding": "UTF-8"
+    },
+    "localization": {
+      "currentLocale": "en",
+      "supportedLocales": [
+        "en",
+        "ru",
+        "uz",
+        "zh",
+        "ko",
+        "ja",
+        "es"
+      ],
+      "fallbackLocale": "en"
+    }
+  },
+  "donations": {
+    "buyMeACoffee": "https://buymeacoffee.com/shukurillokh",
+    "tonAddress": "UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB",
+    "solanaAddress": "7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm"
+  }
+}

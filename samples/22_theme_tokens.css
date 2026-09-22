@@ -1,0 +1,30 @@
+/* Markpad Native v2.0 Design System Tokens */
+:root {
+  /* Color Palette */
+  --markpad-bg-canvas: #050508;
+  --markpad-bg-surface: #0e101d;
+  --markpad-bg-elevated: #181a2e;
+  
+  /* Primary Accent: Electric Violet */
+  --markpad-violet-400: #c084fc;
+  --markpad-violet-500: #a855f7;
+  --markpad-violet-600: #8b5cf6;
+  
+  /* Secondary Accent: Neon Cyan */
+  --markpad-cyan-400: #22d3ee;
+  --markpad-cyan-500: #06b6d4;
+  --markpad-cyan-600: #0ea5e9;
+  
+  /* Brand Gradient (Mark 'Down') */
+  --markpad-gradient-accent: linear-gradient(135deg, #c084fc 0%, #6366f1 50%, #06b6d4 100%);
+  --markpad-gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  
+  /* Typography */
+  --markpad-font-mono: 'Fira Code', 'Consolas', monospace;
+  --markpad-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --markpad-font-heading: 'Outfit', sans-serif;
+
+  /* Shadows */
+  --markpad-shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --markpad-shadow-glow: 0 0 30px rgba(139, 92, 246, 0.35);
+}

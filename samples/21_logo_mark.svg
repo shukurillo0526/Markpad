@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="512" height="512">
+  <defs>
+    <linearGradient id="glyphGrad" x1="10%" y1="80%" x2="90%" y2="80%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="25%" stop-color="#a855f7"/>
+      <stop offset="55%" stop-color="#4f46e5"/>
+      <stop offset="80%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#8b5cf6" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="220" fill="#0c0e18"/>
+  <g filter="url(#glow)">
+    <path d="M 264 680 L 264 340 C 264 315, 282 300, 305 312 L 512 560 L 719 312 C 742 300, 760 315, 760 340 L 760 590"
+          fill="none" stroke="url(#glyphGrad)" stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 645 570 L 875 570 C 888 570, 894 584, 885 594 L 769 746 C 764 752, 756 752, 751 746 L 635 594 C 626 584, 632 570, 645 570 Z"
+          fill="url(#arrowGrad)" stroke="url(#arrowGrad)" stroke-width="6" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -1,0 +1,35 @@
+# Markpad Native Backend Configuration
+[package]
+name = "markpad-native"
+version = "2.0.0"
+description = "The VLC of Text Files — a blazing-fast native text utility"
+authors = ["Vodiy <contact@vodiy.dev>"]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/shukurillo0526/Markpad"
+
+[[bin]]
+name = "MarkpadNative"
+path = "src/main.rs"
+
+[lib]
+name = "markpad_native_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2.7.1"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

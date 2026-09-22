@@ -1,0 +1,12 @@
+[2026-09-22 20:45:01.104] [INFO] [markpad_native_lib::core] Initializing Markpad Native v2.0.0 engine...
+[2026-09-22 20:45:01.118] [INFO] [tauri_plugin_single_instance] Checking for existing instance on named pipe '\\.\pipe\markpad-native'...
+[2026-09-22 20:45:01.121] [INFO] [tauri_plugin_single_instance] No running instance detected. Claimed primary instance lock.
+[2026-09-22 20:45:01.145] [DEBUG] [markpad_native_lib::window] Main window created with dimensions (1000x700), min_size (600x400).
+[2026-09-22 20:45:01.162] [INFO] [markpad_native_lib::i18n] Detected system locale: 'en-US'. Initializing translation catalog for 'en'.
+[2026-09-22 20:45:01.178] [INFO] [markpad_native_lib::session] Restoring last active tab state from local storage cache.
+[2026-09-22 20:45:01.185] [INFO] [markpad_native_lib::io] Memory-mapped file stream ready. High-performance disk buffer active.
+[2026-09-22 20:45:01.199] [INFO] [markpad_native_lib::core] Cold startup completed in 95ms. Ready for user interaction.
+[2026-09-22 20:45:05.420] [DEBUG] [markpad_native_lib::drag_drop] User dragged tab '01_overview.md' outside window bounds.
+[2026-09-22 20:45:05.510] [INFO] [markpad_native_lib::window] Spawning detached native window 'window_1727019905' at (840, 260).
+[2026-09-22 20:45:05.545] [INFO] [markpad_native_lib::transfer] Tab transfer completed with zero data loss.
+[2026-09-22 20:46:12.830] [INFO] [markpad_native_lib::crypto] Clipboard copied TON donation address: 'UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB'.

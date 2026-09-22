@@ -1,0 +1,38 @@
+======================================================================
+MARKPAD NATIVE v2.0.0 — OFFICIAL RELEASE NOTES
+Published by Vodiy | September 2026
+======================================================================
+
+We are thrilled to announce Markpad Native v2.0.0!
+
+This milestone release brings complete multi-window cross-drag-and-drop,
+a redesigned vector brand icon, instant Office and PDF reading, and
+deep internationalization.
+
+WHAT'S NEW IN v2.0.0:
+----------------------------------------------------------------------
+1. Professional App Icon (Mark "Down"):
+   - Modern geometric "M" with the right leg forming a crisp downward pointer.
+   - Beautiful Electric Violet to Neon Cyan gradient.
+   - Clean, pixel-perfect rendering across all Windows & macOS icon sizes.
+
+2. True Cross-Window Tab Dragging:
+   - Tear off any tab to spawn a new native window at your cursor position.
+   - Seamlessly drag tabs between running windows with live insertion glow.
+   - Single-instance IPC architecture prevents duplicate window chaos.
+
+3. Complete Office & PDF Viewer Suite:
+   - Open Word (.docx) documents offline with formatting preserved.
+   - Inspect Excel (.xlsx, .xls) spreadsheets in an interactive sheet viewer.
+   - View, search, and print PDF documents with native PDF.js integration.
+
+4. 7 Languages Supported:
+   - English, Russian, Uzbek, Chinese, Korean, Japanese, and Spanish.
+
+5. Direct Crypto & Community Donations:
+   - 1-Click copy for TON and Solana wallet addresses.
+   - Buy Me a Coffee and Google Form feedback survey integrated.
+
+Download the v2.0.0 release at:
+https://shukurillo0526.github.io/Markpad/
+======================================================================

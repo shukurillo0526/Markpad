@@ -1,0 +1,22 @@
+Extension	Category	Default_Mode	Engine	Syntax_Highlighting
+md	Markdown	preview	Marked.js + CodeMirror	Yes
+json	Data	jsontree	DOM Tree + CodeMirror	Yes
+csv	Data	dataviewer	Canvas Data Table	No
+tsv	Data	dataviewer	Canvas Data Table	No
+xml	Markup	editor	CodeMirror XML	Yes
+yaml	Config	jsontree	CodeMirror YAML	Yes
+toml	Config	envinspector	CodeMirror Basic	Yes
+ini	Config	envinspector	Regex Parser	Yes
+env	Config	envinspector	Key-Value Grid	Yes
+log	Logging	loganalyzer	Log Stream Parser	Yes
+sql	Database	editor	CodeMirror SQL	Yes
+py	Programming	editor	CodeMirror Python	Yes
+rs	Programming	editor	CodeMirror Rust	Yes
+js	Programming	editor	CodeMirror JavaScript	Yes
+ts	Programming	editor	CodeMirror TypeScript	Yes
+html	Web	webpreview	Sandboxed IFrame	Yes
+svg	Vector Graphic	webpreview	Vector SVG Engine	Yes
+css	Styling	editor	CodeMirror CSS	Yes
+xlsx	Spreadsheet	office	SheetJS Viewer	No
+docx	Word Document	office	Mammoth.js Engine	No
+pdf	Document	pdf	PDF.js Canvas Engine	No
