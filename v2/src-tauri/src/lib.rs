@@ -161,6 +161,41 @@ fn reveal_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn open_new_window(file_path: Option<String>) -> Result<(), String> {
+    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let mut cmd = std::process::Command::new(current_exe);
+    if let Some(path) = file_path {
+        if !path.is_empty() {
+            cmd.arg(path);
+        }
+    }
+    cmd.spawn().map_err(|e| format!("Failed to launch new window: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_containing_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let file_path = Path::new(&path);
+        let folder = if file_path.is_dir() {
+            file_path
+        } else {
+            file_path.parent().unwrap_or(file_path)
+        };
+        std::process::Command::new("explorer")
+            .arg(folder)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = path;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -172,7 +207,9 @@ pub fn run() {
             save_file_content,
             save_file_bytes,
             get_startup_args,
-            reveal_file
+            reveal_file,
+            open_new_window,
+            open_containing_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -16,7 +16,8 @@
         "title": "Markpad Native",
         "width": 1000,
         "height": 700,
-        "resizable": true
+        "resizable": true,
+        "dragDropEnabled": true
       }
     ],
     "security": {

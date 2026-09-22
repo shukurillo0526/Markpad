@@ -484,6 +484,57 @@
     }
   }
 
+  async function openNewWindow(filePath: string | null = null) {
+    try {
+      await invoke('open_new_window', { filePath });
+    } catch (e) {
+      console.error('Failed to open new window:', e);
+      showToast(`Failed to open new window: ${e}`, 'error');
+    }
+  }
+
+  async function handleMoveToNewWindow(tab: Tab) {
+    if (tab.filePath) {
+      await openNewWindow(tab.filePath);
+      if (tabs.length > 1) {
+        tabs = tabs.filter((t) => t.id !== tab.id);
+        activeTabId = tabs[0].id;
+      }
+    } else {
+      await openNewWindow(null);
+      if (tabs.length > 1) {
+        tabs = tabs.filter((t) => t.id !== tab.id);
+        activeTabId = tabs[0].id;
+      }
+    }
+  }
+
+  async function handleFilesDropped(files: FileList | string[]) {
+    if (!files || files.length === 0) return;
+    for (let i = 0; i < files.length; i++) {
+      const item = files[i];
+      if (typeof item === 'string') {
+        await loadFileIntoTab(item);
+      } else {
+        const path = (item as any).path;
+        if (path) {
+          await loadFileIntoTab(path);
+        } else {
+          const ext = item.name.split('.').pop()?.toLowerCase() || '';
+          const isBinary = ['pdf', 'xlsx', 'xls', 'docx', 'doc', 'rtf'].includes(ext);
+          if (isBinary) {
+            const buf = await item.arrayBuffer();
+            createNewTab(null, '', item.name, new Uint8Array(buf));
+          } else {
+            const text = await item.text();
+            createNewTab(null, text, item.name);
+          }
+        }
+      }
+    }
+    showToast(`Opened dropped file${files.length > 1 ? 's' : ''}`, 'success');
+  }
+
   function triggerFind() {
     if (activeTab?.mode === 'office') {
       officeViewerRef?.triggerSearch?.();
@@ -583,7 +634,10 @@
 
   // ─── Keyboard Shortcuts ──────────────────────────────────────────────
   function handleKeydown(e: KeyboardEvent) {
-    if (e.ctrlKey && e.key === 'n') {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+      e.preventDefault();
+      openNewWindow();
+    } else if (e.ctrlKey && e.key === 'n') {
       e.preventDefault();
       createNewTab();
     } else if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) {
@@ -751,12 +805,33 @@
           isDraggingFiles = false;
           const paths = event.payload.paths;
           if (paths && paths.length > 0) {
-            for (const path of paths) {
-              await loadFileIntoTab(path);
-            }
+            await handleFilesDropped(paths);
           }
         }
       });
+
+      const onWinDragOver = (e: DragEvent) => {
+        e.preventDefault();
+        if (e.dataTransfer && e.dataTransfer.types.includes('Files')) {
+          isDraggingFiles = true;
+        }
+      };
+      const onWinDragLeave = (e: DragEvent) => {
+        if (!e.relatedTarget) {
+          isDraggingFiles = false;
+        }
+      };
+      const onWinDrop = async (e: DragEvent) => {
+        e.preventDefault();
+        isDraggingFiles = false;
+        if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+          await handleFilesDropped(e.dataTransfer.files);
+        }
+      };
+
+      window.addEventListener('dragover', onWinDragOver);
+      window.addEventListener('dragleave', onWinDragLeave);
+      window.addEventListener('drop', onWinDrop);
     } catch (e) {}
   });
 </script>
@@ -767,14 +842,10 @@
   <title>{windowTitle}</title>
 </svelte:head>
 
-<main class="app-container" class:dark={isDarkMode}>
+<main class="app-container" class:dark={isDarkMode} class:file-drop-glow={isDraggingFiles}>
   {#if isDraggingFiles}
-    <div class="drag-drop-overlay">
-      <div class="drag-drop-box">
-        <div class="drag-drop-icon">📂</div>
-        <div class="drag-drop-title">Drop Files to Open</div>
-        <div class="drag-drop-sub">Text, Markdown, PDF, Word (.docx), Excel (.xlsx), CSV, JSON, Configs, Logs</div>
-      </div>
+    <div class="drop-banner">
+      <span>📂 Drop file(s) here to open in Markpad</span>
     </div>
   {/if}
 
@@ -782,6 +853,7 @@
   <div data-tauri-drag-region class="titlebar">
     <div class="menu">
       <button onclick={openFile} title="Open File (Ctrl+O)">{t('open')}</button>
+      <button onclick={() => openNewWindow()} title="New Window (Ctrl+Shift+N)">🗖 Window</button>
       <button onclick={() => saveActiveFile(false)} title="Save File (Ctrl+S)">{t('save')}</button>
       <button onclick={() => saveActiveFile(true)} title="Save As (Ctrl+Shift+S)">{t('save_as')}</button>
       <button onclick={() => (showExportModal = true)} title="Export PDF / HTML / Clipboard (Ctrl+E)">{t('export')}</button>
@@ -890,6 +962,16 @@
         showToast(`Failed to reveal file: ${e}`, 'error');
       }
     }}
+    onOpenFolder={async (path) => {
+      try {
+        await invoke('open_containing_folder', { path });
+      } catch (e) {
+        showToast(`Failed to open folder: ${e}`, 'error');
+      }
+    }}
+    onMoveToNewWindow={handleMoveToNewWindow}
+    onNewWindow={() => openNewWindow()}
+    onDropFiles={handleFilesDropped}
   />
 
   <!-- ─── Editor / View Area ────────────────────────────────────────── -->
@@ -1535,46 +1617,40 @@
     color: #38bdf8;
   }
 
-  /* Drag & Drop Window Overlay */
-  .drag-drop-overlay {
+  /* Drag & Drop Visuals */
+  .app-container.file-drop-glow {
+    outline: 2px dashed #0284c7;
+    outline-offset: -2px;
+  }
+
+  .drop-banner {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(8px);
-    z-index: 10000;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: #0284c7;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 6px 18px;
+    border-radius: 20px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    pointer-events: none;
     display: flex;
     align-items: center;
-    justify-content: center;
-    pointer-events: none;
-    animation: fadeIn 0.15s ease-out;
+    gap: 8px;
+    animation: dropBannerSlide 0.15s ease-out;
   }
 
-  .drag-drop-box {
-    background: #1e293b;
-    border: 2px dashed #38bdf8;
-    border-radius: 16px;
-    padding: 40px 60px;
-    text-align: center;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-  }
-
-  .drag-drop-icon {
-    font-size: 52px;
-    margin-bottom: 12px;
-  }
-
-  .drag-drop-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: #f8fafc;
-    margin-bottom: 8px;
-  }
-
-  .drag-drop-sub {
-    font-size: 13px;
-    color: #94a3b8;
+  @keyframes dropBannerSlide {
+    from {
+      opacity: 0;
+      transform: translate(-50%, -10px);
+    }
+    to {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
   }
 </style>

@@ -31,7 +31,11 @@
     onSaveTab,
     onSaveAsTab,
     onRevealInExplorer,
-    onReorderTabs
+    onOpenFolder,
+    onMoveToNewWindow,
+    onNewWindow,
+    onReorderTabs,
+    onDropFiles
   } = $props<{
     tabs: Tab[];
     activeTabId: string;
@@ -45,7 +49,11 @@
     onSaveTab?: (id: string) => void;
     onSaveAsTab?: (id: string) => void;
     onRevealInExplorer?: (path: string) => void;
+    onOpenFolder?: (path: string) => void;
+    onMoveToNewWindow?: (tab: Tab) => void;
+    onNewWindow?: () => void;
     onReorderTabs?: (fromIndex: number, toIndex: number) => void;
+    onDropFiles?: (files: FileList | string[]) => void;
   }>();
 
   let contextMenu = $state<{ visible: boolean; x: number; y: number; tabId: string | null }>({
@@ -55,38 +63,125 @@
     tabId: null
   });
 
-  let draggedTabId = $state<string | null>(null);
-  let dragOverTabId = $state<string | null>(null);
+  // ─── Smooth Pointer-Based Tab Drag & Reordering ───────────────────────
+  let draggingTabId = $state<string | null>(null);
+  let dragStartIndex = $state<number>(-1);
+  let dragTargetIndex = $state<number>(-1);
+  let isTearOff = $state(false);
+  let tearOffPos = $state<{ x: number; y: number }>({ x: 0, y: 0 });
+  let startX = 0;
+  let startY = 0;
+  let hasMoved = false;
+  let scrollAreaEl: HTMLDivElement | null = $state(null);
 
-  function handleDragStart(e: DragEvent, id: string) {
-    draggedTabId = id;
+  function handlePointerDown(e: PointerEvent, tabId: string, index: number) {
+    if (e.button !== 0) return; // Only primary left click
+    if ((e.target as HTMLElement).closest('.close-btn')) return;
+
+    startX = e.clientX;
+    startY = e.clientY;
+    hasMoved = false;
+    draggingTabId = tabId;
+    dragStartIndex = index;
+    dragTargetIndex = index;
+    isTearOff = false;
+
+    const el = e.currentTarget as HTMLElement;
+    try {
+      el.setPointerCapture(e.pointerId);
+    } catch (err) {}
+  }
+
+  function handlePointerMove(e: PointerEvent) {
+    if (!draggingTabId) return;
+
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    if (!hasMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      hasMoved = true;
+    }
+
+    if (hasMoved) {
+      tearOffPos = { x: e.clientX, y: e.clientY };
+
+      // Dragging down away from tab bar (tear off to new window like Notepad)
+      if (dy > 45 || dy < -30) {
+        isTearOff = true;
+        dragTargetIndex = -1;
+      } else {
+        isTearOff = false;
+        if (scrollAreaEl) {
+          const tabNodes = scrollAreaEl.querySelectorAll('.tab-item');
+          let newTargetIdx = tabs.length - 1;
+
+          for (let i = 0; i < tabNodes.length; i++) {
+            const rect = tabNodes[i].getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+            if (e.clientX < midX) {
+              newTargetIdx = i;
+              break;
+            }
+          }
+          dragTargetIndex = newTargetIdx;
+        }
+      }
+    }
+  }
+
+  function handlePointerUp(e: PointerEvent, tab: Tab) {
+    if (!draggingTabId) return;
+
+    const wasMoved = hasMoved;
+    const tearOff = isTearOff;
+    const fromIdx = dragStartIndex;
+    const toIdx = dragTargetIndex;
+
+    draggingTabId = null;
+    dragStartIndex = -1;
+    dragTargetIndex = -1;
+    isTearOff = false;
+    hasMoved = false;
+
+    const el = e.currentTarget as HTMLElement;
+    try {
+      el.releasePointerCapture(e.pointerId);
+    } catch (err) {}
+
+    if (tearOff) {
+      // Detached tab out of the tab bar! Move to new window like Notepad
+      if (onMoveToNewWindow) {
+        onMoveToNewWindow(tab);
+      }
+    } else if (wasMoved && toIdx !== -1 && toIdx !== fromIdx) {
+      if (onReorderTabs) {
+        onReorderTabs(fromIdx, toIdx);
+      }
+    } else if (!wasMoved) {
+      onSelectTab(tab.id);
+    }
+  }
+
+  function handlePointerCancel() {
+    draggingTabId = null;
+    dragStartIndex = -1;
+    dragTargetIndex = -1;
+    isTearOff = false;
+    hasMoved = false;
+  }
+
+  function handleTabBarDragOver(e: DragEvent) {
+    e.preventDefault();
     if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', id);
+      e.dataTransfer.dropEffect = 'copy';
     }
   }
 
-  function handleDragOver(e: DragEvent, id: string) {
+  function handleTabBarDrop(e: DragEvent) {
     e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    if (draggedTabId && draggedTabId !== id) {
-      dragOverTabId = id;
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0 && onDropFiles) {
+      onDropFiles(e.dataTransfer.files);
     }
-  }
-
-  function handleDrop(e: DragEvent, targetId: string) {
-    e.preventDefault();
-    if (!draggedTabId || draggedTabId === targetId) {
-      dragOverTabId = null;
-      return;
-    }
-    const fromIdx = tabs.findIndex((t: Tab) => t.id === draggedTabId);
-    const toIdx = tabs.findIndex((t: Tab) => t.id === targetId);
-    if (fromIdx !== -1 && toIdx !== -1 && onReorderTabs) {
-      onReorderTabs(fromIdx, toIdx);
-    }
-    draggedTabId = null;
-    dragOverTabId = null;
   }
 
   function getExtBadge(ext: string): { label: string; color: string } {
@@ -166,24 +261,31 @@
   });
 </script>
 
-<div class="tab-bar-container">
-  <div class="tab-scroll-area">
-    {#each tabs as tab (tab.id)}
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  class="tab-bar-container"
+  role="region"
+  aria-label="Tabs"
+  ondragover={handleTabBarDragOver}
+  ondrop={handleTabBarDrop}
+>
+  <div class="tab-scroll-area" bind:this={scrollAreaEl}>
+    {#each tabs as tab, idx (tab.id)}
       {@const badge = getExtBadge(tab.extension)}
+      {@const isDragging = draggingTabId === tab.id}
+      {@const isTarget = dragTargetIndex === idx && draggingTabId !== tab.id && !isTearOff}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div
         class="tab-item"
         class:active={tab.id === activeTabId}
         class:dirty={tab.isDirty}
         class:pinned={tab.pinned}
-        class:drag-over={dragOverTabId === tab.id}
-        draggable="true"
-        ondragstart={(e) => handleDragStart(e, tab.id)}
-        ondragover={(e) => handleDragOver(e, tab.id)}
-        ondragleave={() => { if (dragOverTabId === tab.id) dragOverTabId = null; }}
-        ondrop={(e) => handleDrop(e, tab.id)}
-        onclick={(e) => handleTabClick(e, tab.id)}
+        class:is-dragging={isDragging}
+        class:drop-target={isTarget}
+        onpointerdown={(e) => handlePointerDown(e, tab.id, idx)}
+        onpointermove={handlePointerMove}
+        onpointerup={(e) => handlePointerUp(e, tab)}
+        onpointercancel={handlePointerCancel}
         oncontextmenu={(e) => handleContextMenu(e, tab.id)}
         title={tab.filePath || tab.title}
       >
@@ -221,6 +323,15 @@
   </div>
 </div>
 
+{#if isTearOff}
+  <div
+    class="tear-off-pill"
+    style="left: {tearOffPos.x}px; top: {tearOffPos.y + 24}px;"
+  >
+    🗔 Move to new window
+  </div>
+{/if}
+
 {#if contextMenu.visible && contextMenu.tabId}
   {@const ctxTab = tabs.find((item: Tab) => item.id === contextMenu.tabId)}
   <div
@@ -231,6 +342,99 @@
     role="menu"
     tabindex="-1"
   >
+    <button
+      class="menu-item highlight-item"
+      onclick={() => {
+        if (ctxTab && onMoveToNewWindow) onMoveToNewWindow(ctxTab);
+        closeContextMenu();
+      }}
+    >
+      🗔 Move to New Window
+    </button>
+
+    <button
+      class="menu-item"
+      onclick={() => {
+        if (onNewWindow) onNewWindow();
+        closeContextMenu();
+      }}
+    >
+      🗖 New Window
+      <span class="shortcut">Ctrl+Shift+N</span>
+    </button>
+
+    <div class="menu-divider"></div>
+
+    {#if ctxTab?.filePath}
+      <button
+        class="menu-item"
+        onclick={() => {
+          if (ctxTab?.filePath && onRevealInExplorer) onRevealInExplorer(ctxTab.filePath);
+          closeContextMenu();
+        }}
+      >
+        📂 Reveal in File Explorer
+      </button>
+
+      <button
+        class="menu-item"
+        onclick={() => {
+          if (ctxTab?.filePath && onOpenFolder) onOpenFolder(ctxTab.filePath);
+          closeContextMenu();
+        }}
+      >
+        📁 Open Containing Folder
+      </button>
+
+      <button
+        class="menu-item"
+        onclick={() => {
+          if (contextMenu.tabId && onCopyPath) onCopyPath(contextMenu.tabId);
+          closeContextMenu();
+        }}
+      >
+        📋 Copy Full Path
+      </button>
+
+      <div class="menu-divider"></div>
+    {/if}
+
+    <button
+      class="menu-item"
+      onclick={() => {
+        if (contextMenu.tabId && onTogglePin) onTogglePin(contextMenu.tabId);
+        closeContextMenu();
+      }}
+    >
+      {ctxTab?.pinned ? 'Unpin Tab' : 'Pin Tab'}
+    </button>
+
+    <div class="menu-divider"></div>
+
+    <button
+      class="menu-item"
+      onclick={() => {
+        if (contextMenu.tabId && onSaveTab) onSaveTab(contextMenu.tabId);
+        closeContextMenu();
+      }}
+    >
+      Save
+      <span class="shortcut">Ctrl+S</span>
+    </button>
+
+    <button
+      class="menu-item"
+      onclick={() => {
+        if (contextMenu.tabId && onSaveAsTab) onSaveAsTab(contextMenu.tabId);
+        closeContextMenu();
+      }}
+    >
+      Save As...
+      <span class="shortcut">Ctrl+Shift+S</span>
+    </button>
+
+    <div class="menu-divider"></div>
+
     <button
       class="menu-item"
       onclick={() => {
@@ -261,71 +465,41 @@
     >
       Close All
     </button>
-
-    <div class="menu-divider"></div>
-
-    <button
-      class="menu-item"
-      onclick={() => {
-        if (contextMenu.tabId && onTogglePin) onTogglePin(contextMenu.tabId);
-        closeContextMenu();
-      }}
-    >
-      {ctxTab?.pinned ? 'Unpin Tab' : 'Pin Tab'}
-    </button>
-
-    {#if ctxTab?.filePath}
-      <button
-        class="menu-item"
-        onclick={() => {
-          if (ctxTab?.filePath && onRevealInExplorer) onRevealInExplorer(ctxTab.filePath);
-          closeContextMenu();
-        }}
-      >
-        Reveal in File Explorer
-      </button>
-
-      <button
-        class="menu-item"
-        onclick={() => {
-          if (contextMenu.tabId && onCopyPath) onCopyPath(contextMenu.tabId);
-          closeContextMenu();
-        }}
-      >
-        Copy Path
-      </button>
-    {/if}
-
-    <div class="menu-divider"></div>
-
-    <button
-      class="menu-item"
-      onclick={() => {
-        if (contextMenu.tabId && onSaveTab) onSaveTab(contextMenu.tabId);
-        closeContextMenu();
-      }}
-    >
-      Save
-      <span class="shortcut">Ctrl+S</span>
-    </button>
-
-    <button
-      class="menu-item"
-      onclick={() => {
-        if (contextMenu.tabId && onSaveAsTab) onSaveAsTab(contextMenu.tabId);
-        closeContextMenu();
-      }}
-    >
-      Save As...
-      <span class="shortcut">Ctrl+Shift+S</span>
-    </button>
   </div>
 {/if}
 
 <style>
-  .tab-item.drag-over {
+  .tab-item.is-dragging {
+    opacity: 0.6;
+    background: var(--button-hover, #334155) !important;
+    transform: scale(0.96);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+  }
+
+  .tab-item.drop-target {
     border-left: 3px solid #38bdf8 !important;
-    background: rgba(56, 189, 248, 0.15) !important;
+    background: rgba(56, 189, 248, 0.2) !important;
+  }
+
+  .tear-off-pill {
+    position: fixed;
+    transform: translate(-50%, 0);
+    background: #0284c7;
+    color: #ffffff;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+    z-index: 10000;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  :global(.highlight-item) {
+    color: #38bdf8 !important;
+    font-weight: 600;
   }
   .tab-bar-container {
     display: flex;
