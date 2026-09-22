@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { printToPdf, escapeHtml } from './export';
 
@@ -30,13 +30,14 @@
   const pageSize = 100;
 
   // ─── Word Document State ──────────────────────────────────────────────
-  let docxPageEl: HTMLDivElement | null = $state(null);
+  let docxPageEl: HTMLDivElement | null = null;
   let docxHtml = $state<string>('');
   let wordCount = $state<number>(0);
   let wordTheme = $state<'paper' | 'dark'>('paper');
   let fontScale = $state<number>(100);
 
   let ext = $derived(extension.toLowerCase());
+  let lastLoadedBytes: Uint8Array | null = null;
 
   function showNotification(msg: string) {
     toastMsg = msg;
@@ -54,9 +55,6 @@
 
     loading = true;
     errorMsg = null;
-    if (docxPageEl) {
-      docxPageEl.innerHTML = '';
-    }
 
     try {
       if (ext === 'xlsx' || ext === 'xls') {
@@ -70,7 +68,8 @@
         }
       } else if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
         const mammoth = await import('mammoth');
-        const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
+        const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        const result = await mammoth.convertToHtml({ arrayBuffer: buffer });
         docxHtml = result.value || '<p>Document is empty</p>';
       }
     } catch (err) {
@@ -86,12 +85,20 @@
     }
   }
 
-  $effect(() => {
-    if (docxPageEl && docxHtml && !docxPageEl.hasChildNodes()) {
-      docxPageEl.innerHTML = docxHtml;
+  function initDocx(node: HTMLDivElement) {
+    docxPageEl = node;
+    if (docxHtml) {
+      node.innerHTML = docxHtml;
       updateWordCount();
     }
-  });
+    return {
+      destroy() {
+        if (docxPageEl === node) {
+          docxPageEl = null;
+        }
+      }
+    };
+  }
 
   // ─── Excel Operations ─────────────────────────────────────────────────
   function loadSheetData(name: string, XLSXModule?: any) {
@@ -362,8 +369,12 @@
   }
 
   $effect(() => {
-    if (bytes) {
-      loadDocument();
+    const currentBytes = bytes;
+    if (currentBytes && currentBytes !== lastLoadedBytes) {
+      lastLoadedBytes = currentBytes;
+      untrack(() => {
+        loadDocument();
+      });
     }
   });
 </script>
@@ -573,7 +584,7 @@
     <!-- Word Document Flowing Scrollable View -->
     <div class="docx-wrapper" class:dark-paper={wordTheme === 'dark'}>
       <div
-        bind:this={docxPageEl}
+        use:initDocx
         class="docx-page"
         class:dark-page={wordTheme === 'dark'}
         style="font-size: {fontScale}%"

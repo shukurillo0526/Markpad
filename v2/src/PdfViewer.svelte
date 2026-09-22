@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy, tick } from 'svelte';
+  import { onMount, onDestroy, tick, untrack } from 'svelte';
 
   let {
     bytes = null,
@@ -177,17 +177,134 @@
     renderCurrentPage();
   }
 
+  export async function printDocument() {
+    if (!pdfDoc) return;
+
+    try {
+      const pageCount = pdfDoc.numPages;
+      const images: string[] = [];
+      const printScale = 1.5;
+
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      if (!tempCtx) return;
+
+      for (let i = 1; i <= pageCount; i++) {
+        const page = await pdfDoc.getPage(i);
+        const vp = page.getViewport({ scale: printScale, rotation });
+        tempCanvas.width = vp.width;
+        tempCanvas.height = vp.height;
+
+        await page.render({
+          canvasContext: tempCtx,
+          viewport: vp
+        }).promise;
+
+        images.push(tempCanvas.toDataURL('image/png'));
+      }
+
+      const pagesHtml = images
+        .map(
+          (imgSrc, idx) => `
+        <div class="pdf-page-print" style="page-break-after: ${idx < images.length - 1 ? 'always' : 'auto'}; margin: 0; padding: 0; text-align: center;">
+          <img src="${imgSrc}" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />
+        </div>
+      `
+        )
+        .join('');
+
+      const printHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${filePath ? filePath.split('\\').pop() : 'PDF Document'}</title>
+  <style>
+    @page { size: auto; margin: 8mm; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    .pdf-page-print { width: 100%; box-sizing: border-box; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .pdf-page-print { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  ${pagesHtml}
+</body>
+</html>`;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'absolute';
+      iframe.style.width = '0px';
+      iframe.style.height = '0px';
+      iframe.style.border = 'none';
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (!doc || !iframe.contentWindow) {
+        document.body.removeChild(iframe);
+        return;
+      }
+
+      doc.open();
+      doc.write(printHtml);
+      doc.close();
+
+      const cleanup = () => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      };
+
+      iframe.contentWindow.addEventListener('afterprint', cleanup);
+
+      setTimeout(() => {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        }
+        setTimeout(cleanup, 60000);
+      }, 300);
+    } catch (err) {
+      console.error('Failed to print PDF:', err);
+    }
+  }
+
+  export async function getPlainText(): Promise<string> {
+    if (!pdfDoc) return '';
+    let fullText = '';
+    try {
+      for (let i = 1; i <= pdfDoc.numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map((item: any) => item.str || '').join(' ');
+        fullText += `--- Page ${i} ---\n` + pageText + '\n\n';
+      }
+    } catch (e) {
+      console.error('Failed to extract PDF text:', e);
+    }
+    return fullText;
+  }
+
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === 'ArrowRight' || e.key === 'PageDown') {
       goToNextPage();
     } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
       goToPrevPage();
+    } else if (e.ctrlKey && (e.key === 'p' || e.key === 'P')) {
+      e.preventDefault();
+      printDocument();
     }
   }
 
+  let lastLoadedBytes: Uint8Array | null = null;
   $effect(() => {
-    if (bytes) {
-      initPdf();
+    const currentBytes = bytes;
+    if (currentBytes && currentBytes !== lastLoadedBytes) {
+      lastLoadedBytes = currentBytes;
+      untrack(() => {
+        initPdf();
+      });
     }
   });
 
@@ -262,6 +379,9 @@
       </button>
       <button class="tool-btn" onclick={rotateClockwise} title="Rotate Clockwise" disabled={loading}>
         🔄
+      </button>
+      <button class="tool-btn text-btn" onclick={printDocument} title="Print / Export PDF (Ctrl+P)" disabled={loading}>
+        🖨️ Print
       </button>
     </div>
 

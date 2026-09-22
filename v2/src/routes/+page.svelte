@@ -68,6 +68,10 @@
     getExportHtml?: () => string;
     getPlainText?: () => string;
   } | undefined = $state();
+  let pdfViewerRef: {
+    printDocument?: () => Promise<void>;
+    getPlainText?: () => Promise<string>;
+  } | undefined = $state();
 
   // ─── Derived ─────────────────────────────────────────────────────────
   let isDarkMode = $derived(themePreference === 'dark');
@@ -175,13 +179,21 @@
 
   async function handleExportHtml() {
     if (!activeTab) return;
+    if (activeTab.mode === 'pdf') {
+      showToast('PDF files cannot be exported to HTML', 'error');
+      return;
+    }
     const htmlToExport = getActiveTabExportHtml();
     const ok = await exportAsHtml(activeTab.title, htmlToExport, isDarkMode);
     if (ok) showToast('Exported Standalone HTML successfully', 'success');
   }
 
-  function handleExportPdf() {
+  async function handleExportPdf() {
     if (!activeTab) return;
+    if (activeTab.mode === 'pdf' && pdfViewerRef?.printDocument) {
+      await pdfViewerRef.printDocument();
+      return;
+    }
     const htmlToExport = getActiveTabExportHtml();
     printToPdf(activeTab.title, htmlToExport);
     showToast('Opening PDF Print Engine...', 'success');
@@ -189,6 +201,10 @@
 
   async function handleCopyHtmlToClipboard() {
     if (!activeTab) return;
+    if (activeTab.mode === 'pdf') {
+      showToast('PDF files cannot be copied as HTML', 'error');
+      return;
+    }
     const htmlContent = getActiveTabExportHtml();
     const htmlToCopy = generateStandaloneHtml({ title: activeTab.title, htmlContent, isDark: isDarkMode });
     try {
@@ -202,7 +218,10 @@
   async function handleCopyTextToClipboard() {
     if (!activeTab) return;
     try {
-      const textToCopy = getActiveTabPlainText();
+      let textToCopy = getActiveTabPlainText();
+      if (activeTab.mode === 'pdf' && pdfViewerRef?.getPlainText) {
+        textToCopy = await pdfViewerRef.getPlainText();
+      }
       await navigator.clipboard.writeText(textToCopy);
       showToast('Text copied to clipboard', 'success');
     } catch (e) {
@@ -827,7 +846,11 @@
       {:else if activeTab.mode === 'loganalyzer'}
         <LogAnalyzer content={activeTab.content} extension={activeTab.extension} />
       {:else if activeTab.mode === 'pdf'}
-        <PdfViewer bytes={activeTab.bytes || null} filePath={activeTab.filePath || ''} />
+        <PdfViewer
+          bind:this={pdfViewerRef}
+          bytes={activeTab.bytes || null}
+          filePath={activeTab.filePath || ''}
+        />
       {:else if activeTab.mode === 'office'}
         <OfficeViewer
           bind:this={officeViewerRef}
