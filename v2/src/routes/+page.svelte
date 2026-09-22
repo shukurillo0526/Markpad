@@ -11,6 +11,8 @@
   import JsonTreeViewer from '../JsonTreeViewer.svelte';
   import EnvInspector from '../EnvInspector.svelte';
   import LogAnalyzer from '../LogAnalyzer.svelte';
+  import PdfViewer from '../PdfViewer.svelte';
+  import OfficeViewer from '../OfficeViewer.svelte';
   import TabBar, { type Tab } from '../TabBar.svelte';
   import StatusBar from '../StatusBar.svelte';
   import { t, getLocale, setLocale, type LocaleKey } from '../i18n.svelte';
@@ -18,6 +20,8 @@
 
   function getDefaultModeForExt(ext: string): Tab['mode'] {
     const e = ext.toLowerCase();
+    if (['pdf'].includes(e)) return 'pdf';
+    if (['xlsx', 'xls', 'docx', 'doc'].includes(e)) return 'office';
     if (['csv', 'tsv'].includes(e)) return 'dataviewer';
     if (['md', 'markdown'].includes(e)) return 'preview';
     if (['html', 'htm', 'svg'].includes(e)) return 'webpreview';
@@ -41,6 +45,7 @@
       lineEnding: 'CRLF',
       encoding: 'UTF-8',
       mode: 'editor',
+      bytes: null,
       pinned: false
     };
   }
@@ -252,7 +257,7 @@
   // ─── Tab Operations ─────────────────────────────────────────────────
   let tabIdCounter = 1;
 
-  function createNewTab(filePath: string | null = null, content = '', title?: string): string {
+  function createNewTab(filePath: string | null = null, content = '', title?: string, bytes: Uint8Array | null = null): string {
     const newId = `tab-${++tabIdCounter}`;
     const ext = filePath ? filePath.split('.').pop()?.toLowerCase() || '' : '';
     const tabTitle = title || (filePath ? filePath.split('\\').pop() || 'Untitled' : `Untitled-${tabIdCounter}`);
@@ -262,6 +267,7 @@
       title: tabTitle,
       filePath,
       content,
+      bytes,
       originalContent: content,
       isDirty: false,
       extension: ext,
@@ -343,20 +349,33 @@
   // ─── File Operations ─────────────────────────────────────────────────
   async function loadFileIntoTab(path: string) {
     try {
-      const content = await invoke<string>('read_file_content', { path });
+      const ext = path.split('.').pop()?.toLowerCase() || '';
+      const isBinaryFormat = ['pdf', 'xlsx', 'xls', 'docx', 'doc'].includes(ext);
+
+      let content = '';
+      let bytes: Uint8Array | null = null;
+
+      if (isBinaryFormat) {
+        const rawBytes = await invoke<number[]>('read_file_bytes', { path });
+        bytes = new Uint8Array(rawBytes);
+      } else {
+        content = await invoke<string>('read_file_content', { path });
+      }
+
       addToRecentFiles(path);
 
-      if (activeTab && !activeTab.filePath && !activeTab.isDirty && activeTab.content === '') {
+      if (activeTab && !activeTab.filePath && !activeTab.isDirty && activeTab.content === '' && !activeTab.bytes) {
         activeTab.filePath = path;
         activeTab.content = content;
+        activeTab.bytes = bytes;
         activeTab.originalContent = content;
         activeTab.isDirty = false;
         activeTab.title = path.split('\\').pop() || 'Untitled';
-        activeTab.extension = path.split('.').pop()?.toLowerCase() || '';
+        activeTab.extension = ext;
         activeTab.lineEnding = content.includes('\r\n') ? 'CRLF' : 'LF';
-        activeTab.mode = getDefaultModeForExt(activeTab.extension);
+        activeTab.mode = getDefaultModeForExt(ext);
       } else {
-        createNewTab(path, content);
+        createNewTab(path, content, undefined, bytes);
       }
     } catch (e) {
       console.error('Failed to load file', e);
@@ -371,10 +390,23 @@
         title: t('open'),
         filters: [
           {
+            name: 'All Supported Formats',
+            extensions: [
+              'md', 'markdown', 'txt', 'json', 'yaml', 'yml', 'toml', 'xml',
+              'csv', 'tsv', 'log', 'ini', 'env', 'js', 'ts', 'jsx', 'tsx', 'html',
+              'htm', 'css', 'scss', 'py', 'rs', 'c', 'cpp', 'h', 'hpp',
+              'sql', 'sh', 'bat', 'ps1', 'svg', 'pdf', 'xlsx', 'xls', 'docx', 'doc', 'rtf'
+            ]
+          },
+          {
+            name: 'Office & PDF Documents',
+            extensions: ['pdf', 'xlsx', 'xls', 'docx', 'doc', 'rtf']
+          },
+          {
             name: 'Text & Code Files',
             extensions: [
               'md', 'markdown', 'txt', 'json', 'yaml', 'yml', 'toml', 'xml',
-              'csv', 'log', 'ini', 'env', 'js', 'ts', 'jsx', 'tsx', 'html',
+              'csv', 'tsv', 'log', 'ini', 'env', 'js', 'ts', 'jsx', 'tsx', 'html',
               'htm', 'css', 'scss', 'py', 'rs', 'c', 'cpp', 'h', 'hpp',
               'sql', 'sh', 'bat', 'ps1', 'svg'
             ]
@@ -656,8 +688,7 @@
       <select
         value={getLocale()}
         onchange={(e) => setLocale(e.currentTarget.value as LocaleKey)}
-        class="icon-btn"
-        style="text-transform: uppercase; font-weight: 600; appearance: none; background: transparent; border: none; outline: none; cursor: pointer; text-align: center;"
+        class="lang-select icon-btn"
         title="Switch Language"
       >
         <option value="en">EN</option>
@@ -710,6 +741,18 @@
           Log Filter
         </button>
       {/if}
+
+      {#if activeTab?.extension.toLowerCase() === 'pdf'}
+        <button class:active={activeTab?.mode === 'pdf'} onclick={() => setMode('pdf')}>
+          PDF Viewer
+        </button>
+      {/if}
+
+      {#if ['xlsx', 'xls', 'docx', 'doc'].includes(activeTab?.extension.toLowerCase() || '')}
+        <button class:active={activeTab?.mode === 'office'} onclick={() => setMode('office')}>
+          Document
+        </button>
+      {/if}
     </div>
   </div>
 
@@ -744,6 +787,10 @@
         <EnvInspector content={activeTab.content} extension={activeTab.extension} />
       {:else if activeTab.mode === 'loganalyzer'}
         <LogAnalyzer content={activeTab.content} extension={activeTab.extension} />
+      {:else if activeTab.mode === 'pdf'}
+        <PdfViewer bytes={activeTab.bytes || null} filePath={activeTab.filePath || ''} />
+      {:else if activeTab.mode === 'office'}
+        <OfficeViewer bytes={activeTab.bytes || null} extension={activeTab.extension} filePath={activeTab.filePath || ''} />
       {:else}
         <Editor
           bind:this={editorRef}
@@ -792,6 +839,7 @@
       role="button"
       tabindex="0"
     >
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         class="modal-box"
         onclick={(e) => e.stopPropagation()}
@@ -885,6 +933,7 @@
       role="button"
       tabindex="0"
     >
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         class="modal-box"
         onclick={(e) => e.stopPropagation()}
@@ -929,6 +978,7 @@
       role="button"
       tabindex="0"
     >
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <div
         class="modal-box"
         onclick={(e) => e.stopPropagation()}
@@ -990,7 +1040,18 @@
     --bg-color: #f8fafc;
     --text-color: #0f172a;
     --border-color: #e2e8f0;
-    --button-hover: #f1f5f9;
+    --button-hover: #e2e8f0;
+    --surface-bg: #ffffff;
+    --surface-secondary: #f1f5f9;
+    --tab-bg: #f1f5f9;
+    --tab-item-bg: #e2e8f0;
+    --tab-item-active-bg: #ffffff;
+    --tab-border: #cbd5e1;
+    --status-bg: #f1f5f9;
+    --status-text: #475569;
+    --status-border: #e2e8f0;
+    --card-bg: #ffffff;
+    --card-border: #e2e8f0;
   }
 
   .app-container.dark {
@@ -1000,6 +1061,17 @@
     --text-color: #e2e8f0;
     --border-color: #1e293b;
     --button-hover: #1e293b;
+    --surface-bg: #0f172a;
+    --surface-secondary: #1e293b;
+    --tab-bg: #090d16;
+    --tab-item-bg: #0f172a;
+    --tab-item-active-bg: #1e293b;
+    --tab-border: #1e293b;
+    --status-bg: #0f172a;
+    --status-text: #94a3b8;
+    --status-border: #1e293b;
+    --card-bg: #0f172a;
+    --card-border: #334155;
   }
 
   .titlebar {
@@ -1024,7 +1096,7 @@
     background: transparent;
     border: none;
     color: var(--text-color);
-    opacity: 0.8;
+    opacity: 0.85;
     padding: 4px 10px;
     cursor: pointer;
     font-size: 12px;
@@ -1048,8 +1120,32 @@
 
   .modes button.active {
     background-color: #38bdf8;
-    color: var(--bg-color);
+    color: #0f172a;
     font-weight: 700;
+  }
+
+  .lang-select {
+    color: var(--text-color);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 3px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .lang-select:hover {
+    background: var(--button-hover);
+    color: var(--text-color);
+  }
+
+  .lang-select option {
+    background-color: var(--surface-bg);
+    color: var(--text-color);
   }
 
   .divider {

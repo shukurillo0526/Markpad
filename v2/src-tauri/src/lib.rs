@@ -88,6 +88,36 @@ async fn save_file_content(path: String, content: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+async fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
+    let file_path = Path::new(&path);
+
+    if !file_path.is_absolute() {
+        return Err("Only absolute file paths are allowed.".to_string());
+    }
+
+    if !file_path.exists() {
+        return Err("File not found.".to_string());
+    }
+
+    if !file_path.is_file() {
+        return Err("Path is not a file.".to_string());
+    }
+
+    let metadata = fs::metadata(&path).map_err(|e| e.to_string())?;
+    let size = metadata.len();
+
+    if size > MAX_FILE_SIZE {
+        return Err(format!(
+            "File is too large ({:.1} MB). Maximum supported size is {:.0} MB.",
+            size as f64 / 1024.0 / 1024.0,
+            MAX_FILE_SIZE as f64 / 1024.0 / 1024.0
+        ));
+    }
+
+    fs::read(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn get_startup_args() -> Vec<String> {
     std::env::args().collect()
 }
@@ -99,6 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             read_file_content,
+            read_file_bytes,
             save_file_content,
             get_startup_args
         ])

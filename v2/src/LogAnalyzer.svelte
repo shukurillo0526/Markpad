@@ -138,8 +138,8 @@
     flex-direction: column;
     height: 100%;
     width: 100%;
-    background: #0f172a;
-    color: #f8fafc;
+    background: var(--surface-bg, #0f172a);
+    color: var(--text-color, #f8fafc);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 12px;
   }
@@ -150,8 +150,8 @@
     justify-content: space-between;
     height: 42px;
     padding: 0 16px;
-    background: #1e293b;
-    border-bottom: 1px solid #334155;
+    background: var(--surface-secondary, #1e293b);
+    border-bottom: 1px solid var(--border-color, #334155);
     user-select: none;
     flex-shrink: 0;
   }
@@ -174,9 +174,9 @@
   }
 
   .pill {
-    background: #0f172a;
-    border: 1px solid #334155;
-    color: #94a3b8;
+    background: var(--surface-bg, #0f172a);
+    border: 1px solid var(--border-color, #334155);
+    color: var(--status-text, #94a3b8);
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 11px;
@@ -185,7 +185,7 @@
     transition: background 0.15s ease, color 0.15s ease;
   }
 
-  .pill:hover { background: #334155; color: #f8fafc; }
+  .pill:hover { background: var(--button-hover, #334155); color: var(--text-color, #f8fafc); }
   .pill.active { background: #38bdf8; color: #0f172a; border-color: #38bdf8; }
 
   .pill.error.active { background: #ef4444; color: white; border-color: #ef4444; }
@@ -200,9 +200,9 @@
   }
 
   .search-input {
-    background: #0f172a;
-    border: 1px solid #475569;
-    color: #f8fafc;
+    background: var(--bg-color, #0f172a);
+    border: 1px solid var(--border-color, #475569);
+    color: var(--text-color, #f8fafc);
     padding: 4px 10px;
     border-radius: 4px;
     font-size: 11px;
@@ -276,10 +276,10 @@
     justify-content: space-between;
     padding: 12px 20px;
     margin: 12px 16px;
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: var(--surface-secondary, #1e293b);
+    border: 1px solid var(--border-color, #334155);
     border-radius: 6px;
-    color: #94a3b8;
+    color: var(--status-text, #94a3b8);
     font-size: 12px;
   }
 
@@ -289,8 +289,8 @@
   }
 
   .load-btn {
-    background: #0f172a;
-    border: 1px solid #475569;
+    background: var(--surface-bg, #0f172a);
+    border: 1px solid var(--border-color, #475569);
     color: #38bdf8;
     padding: 4px 12px;
     border-radius: 4px;

@@ -13,7 +13,8 @@
     cursorPos: { line: number; col: number; selectionLen: number };
     lineEnding: 'CRLF' | 'LF';
     encoding: string;
-    mode: 'editor' | 'dataviewer' | 'preview' | 'webpreview' | 'jsontree' | 'envinspector' | 'loganalyzer';
+    mode: 'editor' | 'dataviewer' | 'preview' | 'webpreview' | 'jsontree' | 'envinspector' | 'loganalyzer' | 'pdf' | 'office';
+    bytes?: Uint8Array | null;
     pinned?: boolean;
   }
 
@@ -73,6 +74,15 @@
         return { label: '#', color: '#818cf8' };
       case 'sql':
         return { label: 'DB', color: '#c084fc' };
+      case 'pdf':
+        return { label: 'PDF', color: '#ef4444' };
+      case 'xlsx':
+      case 'xls':
+        return { label: 'XLS', color: '#10b981' };
+      case 'docx':
+      case 'doc':
+      case 'rtf':
+        return { label: 'DOC', color: '#3b82f6' };
       default:
         return { label: 'TXT', color: '#94a3b8' };
     }
@@ -249,14 +259,14 @@
   .tab-bar-container {
     display: flex;
     align-items: center;
-    background: #090d16;
-    border-bottom: 1px solid #1e293b;
+    background: var(--tab-bg, #090d16);
+    border-bottom: 1px solid var(--border-color, #1e293b);
     height: 36px;
     overflow-x: auto;
     overflow-y: hidden;
     user-select: none;
     scrollbar-width: thin;
-    scrollbar-color: #334155 transparent;
+    scrollbar-color: var(--border-color, #334155) transparent;
   }
 
   .tab-scroll-area {
@@ -273,11 +283,11 @@
     height: 32px;
     padding: 0 10px;
     margin-right: 2px;
-    background: #0f172a;
-    border: 1px solid #1e293b;
+    background: var(--tab-item-bg, #0f172a);
+    border: 1px solid var(--tab-border, #1e293b);
     border-bottom: none;
     border-radius: 6px 6px 0 0;
-    color: #94a3b8;
+    color: var(--status-text, #94a3b8);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -288,13 +298,13 @@
   }
 
   .tab-item:hover {
-    background: #1e293b;
-    color: #e2e8f0;
+    background: var(--button-hover, #1e293b);
+    color: var(--text-color, #e2e8f0);
   }
 
   .tab-item.active {
-    background: #1e293b;
-    color: #f8fafc;
+    background: var(--tab-item-active-bg, #1e293b);
+    color: var(--text-color, #f8fafc);
     border-color: #38bdf8;
     border-bottom: 2px solid #38bdf8;
   }
@@ -389,11 +399,11 @@
   .context-menu {
     position: fixed;
     z-index: 1000;
-    background: #0f172a;
-    border: 1px solid #334155;
+    background: var(--surface-bg, #0f172a);
+    border: 1px solid var(--card-border, #334155);
     border-radius: 8px;
     padding: 4px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
     min-width: 160px;
   }
 
@@ -405,7 +415,7 @@
     padding: 6px 12px;
     border: none;
     background: transparent;
-    color: #cbd5e1;
+    color: var(--text-color, #cbd5e1);
     font-size: 12px;
     text-align: left;
     border-radius: 4px;
@@ -427,7 +437,7 @@
 
   .menu-divider {
     height: 1px;
-    background: #1e293b;
+    background: var(--border-color, #1e293b);
     margin: 4px 0;
   }
 </style>

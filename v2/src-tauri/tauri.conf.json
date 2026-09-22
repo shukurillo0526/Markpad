@@ -40,7 +40,7 @@
     },
     "fileAssociations": [
       {
-        "ext": ["md", "markdown", "json", "yaml", "yml", "toml", "xml", "csv", "tsv", "txt", "log", "ini", "env", "conf", "sql", "py", "rs", "js", "ts", "html", "css"],
+        "ext": ["md", "markdown", "json", "yaml", "yml", "toml", "xml", "csv", "tsv", "txt", "log", "ini", "env", "conf", "sql", "py", "rs", "js", "ts", "html", "css", "pdf", "xlsx", "xls", "docx", "rtf"],
         "name": "Markpad Native Document"
       }
     ]

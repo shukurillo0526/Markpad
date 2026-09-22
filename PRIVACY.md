@@ -1,6 +1,6 @@
 # Privacy Policy for Markpad Native
 
-**Effective Date: May 20, 2026**
+**Effective Date: June 20, 2026**
 
 ## Overview
 Markpad Native ("the Application") is a local, offline text utility developed by Vodiy ("we", "us", or "our"). We are committed to protecting your privacy. This Privacy Policy explains our practices regarding the collection, use, and disclosure of information when you use the Application.

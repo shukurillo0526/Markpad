@@ -90,17 +90,95 @@ export function generateStandaloneHtml({ title, htmlContent, isDark = true }: Ex
       color: #94a3b8;
       text-align: center;
     }
+    .print-doc-header, .print-doc-footer {
+      display: none;
+    }
+    @page {
+      size: auto;
+      margin: 0; /* Suppresses Chromium default headers/footers (tauri.localhost, date/time) */
+    }
     @media print {
-      body { background: #fff; color: #000; padding: 0; }
-      .container { max-width: 100%; }
-      pre, code { border: 1px solid #ccc; background: #f5f5f5; color: #000; }
-      footer { display: none; }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .container {
+        max-width: 100% !important;
+        padding: 16mm 20mm !important;
+        box-sizing: border-box !important;
+      }
+      .print-doc-header {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1.5px solid #0f172a;
+        padding-bottom: 8px;
+        margin-bottom: 24px;
+        font-size: 11px;
+        color: #475569;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+      .print-doc-header .brand {
+        color: #0284c7;
+        font-weight: 800;
+      }
+      pre {
+        border: 1px solid #cbd5e1 !important;
+        background: #f8fafc !important;
+        color: #0f172a !important;
+        page-break-inside: avoid;
+        white-space: pre-wrap !important;
+        word-break: break-all !important;
+      }
+      code {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+      }
+      table {
+        page-break-inside: avoid;
+        border: 1px solid #cbd5e1 !important;
+      }
+      th {
+        background: #f1f5f9 !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
+      }
+      td {
+        border: 1px solid #cbd5e1 !important;
+      }
+      .print-doc-footer {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 1px solid #cbd5e1;
+        padding-top: 10px;
+        margin-top: 36px;
+        font-size: 10px;
+        color: #94a3b8;
+        page-break-inside: avoid;
+      }
+      footer {
+        display: none !important;
+      }
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <div class="print-doc-header">
+      <span class="brand">MARKPAD NATIVE</span>
+      <span>${escapeHtml(title)}</span>
+    </div>
     ${htmlContent}
+    <div class="print-doc-footer">
+      <span>Published with Vodiy Markpad Native</span>
+      <span>Enterprise Offline Document</span>
+    </div>
     <footer>
       Exported with <strong>Markpad Native v2.0</strong> &bull; Published by Vodiy
     </footer>

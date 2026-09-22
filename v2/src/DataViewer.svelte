@@ -210,6 +210,8 @@
     overflow: auto;
     font-size: 13px;
     box-sizing: border-box;
+    background: var(--surface-bg, #ffffff);
+    color: var(--text-color, #0f172a);
   }
 
   .empty-state {
@@ -229,7 +231,7 @@
     justify-content: space-between;
     margin-bottom: 12px;
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--status-text, #94a3b8);
   }
 
   .stats {
@@ -249,9 +251,9 @@
   }
 
   .page-btn {
-    background: #1e293b;
-    color: #e2e8f0;
-    border: 1px solid #334155;
+    background: var(--surface-secondary, #1e293b);
+    color: var(--text-color, #e2e8f0);
+    border: 1px solid var(--border-color, #334155);
     border-radius: 4px;
     padding: 3px 8px;
     font-size: 11px;
@@ -278,7 +280,8 @@
   .table-container {
     overflow-x: auto;
     border-radius: 8px;
-    border: 1px solid rgba(128, 128, 128, 0.2);
+    border: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+    background: var(--surface-bg, #ffffff);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   }
 
@@ -290,10 +293,11 @@
   }
 
   th {
-    background-color: rgba(128, 128, 128, 0.12);
+    background-color: var(--surface-secondary, rgba(128, 128, 128, 0.12));
+    color: var(--text-color, #0f172a);
     font-weight: 600;
     padding: 8px 12px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
     white-space: nowrap;
     position: sticky;
     top: 0;
@@ -301,7 +305,8 @@
 
   td {
     padding: 6px 12px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.08);
+    border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.08));
+    color: var(--text-color, #0f172a);
     white-space: nowrap;
     max-width: 400px;
     overflow: hidden;
@@ -309,7 +314,7 @@
   }
 
   tr:hover td {
-    background-color: rgba(56, 189, 248, 0.05);
+    background-color: rgba(56, 189, 248, 0.08);
   }
 
   .row-num-th, .row-num-td {

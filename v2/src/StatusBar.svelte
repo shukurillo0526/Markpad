@@ -32,7 +32,7 @@
     language?: string;
     isDirty?: boolean;
     filePath?: string | null;
-    activeMode?: 'editor' | 'dataviewer' | 'preview' | 'webpreview' | 'jsontree' | 'envinspector' | 'loganalyzer';
+    activeMode?: 'editor' | 'dataviewer' | 'preview' | 'webpreview' | 'jsontree' | 'envinspector' | 'loganalyzer' | 'pdf' | 'office';
     wordWrap?: boolean;
     showInvisibles?: boolean;
     onToggleLineEnding?: () => void;
@@ -137,9 +137,9 @@
     align-items: center;
     justify-content: space-between;
     height: 24px;
-    background: #0f172a;
-    border-top: 1px solid #1e293b;
-    color: #94a3b8;
+    background: var(--status-bg, #0f172a);
+    border-top: 1px solid var(--status-border, #1e293b);
+    color: var(--status-text, #94a3b8);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     font-size: 11px;
     padding: 0 10px;
@@ -163,14 +163,14 @@
   .mode-badge {
     padding: 1px 6px;
     border-radius: 4px;
-    background: #1e293b;
+    background: var(--surface-secondary, #1e293b);
     color: #38bdf8;
     font-weight: 500;
   }
 
   .mode-badge.dirty {
     color: #f59e0b;
-    background: #451a03;
+    background: rgba(245, 158, 11, 0.2);
   }
 
   .dot {
@@ -193,22 +193,22 @@
     max-width: 200px;
     overflow: hidden;
     text-overflow: ellipsis;
-    color: #64748b;
+    color: var(--status-text, #64748b);
   }
 
   .language-tag {
-    background: #1e293b;
-    color: #cbd5e1;
+    background: var(--surface-secondary, #1e293b);
+    color: var(--text-color, #cbd5e1);
     padding: 1px 6px;
     border-radius: 4px;
     font-weight: 600;
   }
 
   .badge-toggle {
-    background: #1e293b;
+    background: var(--surface-secondary, #1e293b);
     padding: 1px 6px;
     border-radius: 4px;
-    color: #94a3b8;
+    color: var(--status-text, #94a3b8);
     transition: background 0.15s ease, color 0.15s ease;
   }
 
@@ -223,7 +223,7 @@
   }
 
   .clickable:hover {
-    color: #f8fafc;
+    color: var(--text-color, #f8fafc);
   }
 
   @media (max-width: 640px) {

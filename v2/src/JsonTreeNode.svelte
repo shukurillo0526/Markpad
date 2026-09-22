@@ -145,8 +145,11 @@
   }
 
   .key-label {
-    color: #38bdf8;
+    color: #0284c7;
     font-weight: 600;
+  }
+  :global(.app-container.dark) .key-label {
+    color: #38bdf8;
   }
 
   .type-badge {
@@ -157,25 +160,41 @@
     text-transform: uppercase;
   }
 
-  .type-badge.string { background: #065f46; color: #34d399; }
-  .type-badge.number { background: #1e3a8a; color: #60a5fa; }
-  .type-badge.boolean { background: #581c87; color: #c084fc; }
-  .type-badge.null { background: #374151; color: #9ca3af; }
-  .type-badge.object, .type-badge.array { background: #78350f; color: #fbbf24; }
+  .type-badge.string { background: rgba(16, 185, 129, 0.2); color: #059669; }
+  :global(.app-container.dark) .type-badge.string { background: #065f46; color: #34d399; }
+
+  .type-badge.number { background: rgba(59, 130, 246, 0.2); color: #2563eb; }
+  :global(.app-container.dark) .type-badge.number { background: #1e3a8a; color: #60a5fa; }
+
+  .type-badge.boolean { background: rgba(168, 85, 247, 0.2); color: #7c3aed; }
+  :global(.app-container.dark) .type-badge.boolean { background: #581c87; color: #c084fc; }
+
+  .type-badge.null { background: rgba(100, 116, 139, 0.2); color: #475569; }
+  :global(.app-container.dark) .type-badge.null { background: #374151; color: #9ca3af; }
+
+  .type-badge.object, .type-badge.array { background: rgba(245, 158, 11, 0.2); color: #d97706; }
+  :global(.app-container.dark) .type-badge.object, :global(.app-container.dark) .type-badge.array { background: #78350f; color: #fbbf24; }
 
   .preview-summary {
-    color: #64748b;
+    color: var(--status-text, #64748b);
     font-style: italic;
     font-size: 11px;
   }
 
-  .val-string { color: #34d399; word-break: break-all; }
-  .val-number { color: #60a5fa; }
-  .val-boolean { color: #c084fc; font-weight: 600; }
-  .val-null { color: #9ca3af; font-weight: 600; }
+  .val-string { color: #059669; word-break: break-all; }
+  :global(.app-container.dark) .val-string { color: #34d399; }
+
+  .val-number { color: #2563eb; }
+  :global(.app-container.dark) .val-number { color: #60a5fa; }
+
+  .val-boolean { color: #7c3aed; font-weight: 600; }
+  :global(.app-container.dark) .val-boolean { color: #c084fc; }
+
+  .val-null { color: #475569; font-weight: 600; }
+  :global(.app-container.dark) .val-null { color: #9ca3af; }
 
   .children-container {
-    border-left: 1px solid rgba(51, 65, 85, 0.5);
+    border-left: 1px solid var(--border-color, rgba(51, 65, 85, 0.5));
     margin-left: 6px;
   }
 </style>
