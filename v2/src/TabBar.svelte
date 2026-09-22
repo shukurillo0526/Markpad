@@ -71,6 +71,10 @@
 
   // ─── Smooth Pointer-Based Tab Drag, Cross-Window & Reordering ────────
   let myWindowLabel = '';
+  try {
+    myWindowLabel = getCurrentWindow().label;
+  } catch (e) {}
+
   let tabChannel: BroadcastChannel | null = null;
   let remoteDropTargetIndex = $state<number>(-1);
   let remoteDraggingTab = $state<Tab | null>(null);
@@ -111,13 +115,11 @@
     activeTargetInfo = null;
   }
 
-  async function checkRemoteTarget(screenX: number, screenY: number) {
+  async function checkRemoteTarget() {
     try {
       const target = await invoke<{ label: string; relX?: number; rel_x?: number; relY?: number; rel_y?: number } | null>(
         'find_window_at_point',
         {
-          screenX,
-          screenY,
           excludeLabel: myWindowLabel || null
         }
       );
@@ -170,9 +172,9 @@
         dragTargetIndex = -1;
 
         const now = performance.now();
-        if (now - lastCheckTime > 30) {
+        if (now - lastCheckTime > 25) {
           lastCheckTime = now;
-          checkRemoteTarget(e.screenX, e.screenY);
+          checkRemoteTarget();
         }
       } else {
         isTearOff = false;
@@ -207,8 +209,6 @@
     const tearOff = isTearOff;
     const fromIdx = dragStartIndex;
     const toIdx = dragTargetIndex;
-    const finalScreenX = e.screenX;
-    const finalScreenY = e.screenY;
 
     const el = e.currentTarget as HTMLElement;
     try {
@@ -228,8 +228,6 @@
         const freshTarget = await invoke<{ label: string; relX?: number; rel_x?: number; relY?: number; rel_y?: number } | null>(
           'find_window_at_point',
           {
-            screenX: finalScreenX,
-            screenY: finalScreenY,
             excludeLabel: myWindowLabel || null
           }
         );
@@ -264,7 +262,7 @@
           sourceLabel: myWindowLabel
         });
         if (onMoveToNewWindow) {
-          onMoveToNewWindow(tab, finalScreenX, finalScreenY);
+          onMoveToNewWindow(tab);
         }
       }
     } else if (wasMoved && toIdx !== -1 && toIdx !== fromIdx) {
@@ -545,7 +543,7 @@
 {#if remoteDraggingTab}
   <div
     class="tear-off-pill remote"
-    style="left: {Math.max(90, Math.min(remoteCursorX, 600))}px; top: {Math.max(10, Math.min(remoteCursorY + 24, 70))}px;"
+    style="left: {Math.max(120, Math.min(remoteCursorX, 600))}px; top: 46px;"
   >
     📂 Insert into this window ({remoteDraggingTab.title})
   </div>

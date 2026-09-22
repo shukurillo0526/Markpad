@@ -184,6 +184,17 @@ async fn open_new_window(
     .resizable(true)
     .drag_and_drop(true);
 
+    #[cfg(target_os = "windows")]
+    {
+        let mut pt = WinPoint::default();
+        unsafe {
+            GetCursorPos(&mut pt);
+        }
+        let px = x.unwrap_or_else(|| (pt.x - 120).max(0) as f64);
+        let py = y.unwrap_or_else(|| (pt.y - 30).max(0) as f64);
+        builder = builder.position(px, py);
+    }
+    #[cfg(not(target_os = "windows"))]
     if let (Some(px), Some(py)) = (x, y) {
         builder = builder.position(px, py);
     }
@@ -216,10 +227,54 @@ fn open_containing_folder(path: String) -> Result<(), String> {
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
+pub struct WindowRect {
+    pub label: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub scale_factor: f64,
+}
+
+#[tauri::command]
+fn get_my_window_rect(window: tauri::WebviewWindow) -> Result<WindowRect, String> {
+    let pos = window.outer_position().map_err(|e| e.to_string())?;
+    let size = window.outer_size().map_err(|e| e.to_string())?;
+    let scale = window.scale_factor().map_err(|e| e.to_string())?;
+    let logical_pos = pos.to_logical::<f64>(scale);
+    let logical_size = size.to_logical::<f64>(scale);
+    Ok(WindowRect {
+        label: window.label().to_string(),
+        x: logical_pos.x,
+        y: logical_pos.y,
+        width: logical_size.width,
+        height: logical_size.height,
+        scale_factor: scale,
+    })
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct TargetWindowInfo {
     pub label: String,
     pub rel_x: f64,
     pub rel_y: f64,
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
+pub struct WinPoint {
+    pub x: i32,
+    pub y: i32,
+}
+
+#[cfg(target_os = "windows")]
+extern "system" {
+    fn GetCursorPos(lp_point: *mut WinPoint) -> i32;
+    fn WindowFromPoint(point: WinPoint) -> isize;
+    fn GetAncestor(hwnd: isize, ga_flags: u32) -> isize;
+    fn SetForegroundWindow(hwnd: isize) -> i32;
 }
 
 #[tauri::command]
@@ -230,65 +285,98 @@ fn get_current_window_label(window: tauri::WebviewWindow) -> String {
 #[tauri::command]
 fn find_window_at_point(
     app: tauri::AppHandle,
-    screen_x: f64,
-    screen_y: f64,
     exclude_label: Option<String>,
 ) -> Option<TargetWindowInfo> {
     let exclude = exclude_label.unwrap_or_default();
-    for (label, win) in app.webview_windows() {
-        if !exclude.is_empty() && label == exclude {
-            continue;
-        }
-        if let Ok(true) = win.is_minimized() {
-            continue;
-        }
-        if let Ok(false) = win.is_visible() {
-            continue;
-        }
-        if let (Ok(pos), Ok(size), Ok(scale)) = (win.outer_position(), win.outer_size(), win.scale_factor()) {
-            let logical_pos = pos.to_logical::<f64>(scale);
-            let logical_size = size.to_logical::<f64>(scale);
 
-            // Generous margin for smooth, natural drag-and-drop between windows
-            let min_x = logical_pos.x - 15.0;
-            let max_x = logical_pos.x + logical_size.width + 15.0;
-            let min_y = logical_pos.y - 45.0;
-            let max_y = logical_pos.y + logical_size.height + 25.0;
+    #[cfg(target_os = "windows")]
+    {
+        let mut pt = WinPoint::default();
+        unsafe {
+            GetCursorPos(&mut pt);
+        }
 
-            if screen_x >= min_x && screen_x <= max_x && screen_y >= min_y && screen_y <= max_y {
-                return Some(TargetWindowInfo {
-                    label,
-                    rel_x: (screen_x - logical_pos.x).max(0.0),
-                    rel_y: (screen_y - logical_pos.y).max(0.0),
-                });
+        let raw_hwnd = unsafe { WindowFromPoint(pt) };
+        let root_hwnd = unsafe { GetAncestor(raw_hwnd, 2) }; // GA_ROOT = 2
+
+        // 1. Direct HWND check (cursor is directly over any part of another Markpad window)
+        for (label, win) in app.webview_windows() {
+            if !exclude.is_empty() && label == exclude {
+                continue;
+            }
+            if let Ok(true) = win.is_minimized() {
+                continue;
+            }
+            if let Ok(false) = win.is_visible() {
+                continue;
             }
 
-            // Also test in physical monitor pixels in case screen_x was reported in physical units
-            let phys_x = pos.x as f64;
-            let phys_y = pos.y as f64;
-            let phys_w = size.width as f64;
-            let phys_h = size.height as f64;
-            let p_min_x = phys_x - (15.0 * scale);
-            let p_max_x = phys_x + phys_w + (15.0 * scale);
-            let p_min_y = phys_y - (45.0 * scale);
-            let p_max_y = phys_y + phys_h + (25.0 * scale);
+            let is_match = if let Ok(hwnd) = win.hwnd() {
+                let win_hwnd = hwnd.0 as isize;
+                win_hwnd != 0 && (win_hwnd == root_hwnd || win_hwnd == raw_hwnd)
+            } else {
+                false
+            };
 
-            if screen_x >= p_min_x && screen_x <= p_max_x && screen_y >= p_min_y && screen_y <= p_max_y {
-                return Some(TargetWindowInfo {
-                    label,
-                    rel_x: ((screen_x - phys_x) / scale).max(0.0),
-                    rel_y: ((screen_y - phys_y) / scale).max(0.0),
-                });
+            if is_match {
+                if let (Ok(pos), Ok(scale)) = (win.outer_position(), win.scale_factor()) {
+                    let rel_x = ((pt.x - pos.x) as f64 / scale).max(0.0);
+                    let rel_y = ((pt.y - pos.y) as f64 / scale).max(0.0);
+                    return Some(TargetWindowInfo {
+                        label,
+                        rel_x,
+                        rel_y,
+                    });
+                }
+            }
+        }
+
+        // 2. Physical geometry bounding box check (generous margin for borders and tab bar)
+        for (label, win) in app.webview_windows() {
+            if !exclude.is_empty() && label == exclude {
+                continue;
+            }
+            if let Ok(true) = win.is_minimized() {
+                continue;
+            }
+            if let Ok(false) = win.is_visible() {
+                continue;
+            }
+
+            if let (Ok(pos), Ok(size), Ok(scale)) = (win.outer_position(), win.outer_size(), win.scale_factor()) {
+                let min_x = pos.x - 30;
+                let max_x = pos.x + size.width as i32 + 30;
+                let min_y = pos.y - 50;
+                let max_y = pos.y + size.height as i32 + 30;
+
+                if pt.x >= min_x && pt.x <= max_x && pt.y >= min_y && pt.y <= max_y {
+                    let rel_x = ((pt.x - pos.x) as f64 / scale).max(0.0);
+                    let rel_y = ((pt.y - pos.y) as f64 / scale).max(0.0);
+                    return Some(TargetWindowInfo {
+                        label,
+                        rel_x,
+                        rel_y,
+                    });
+                }
             }
         }
     }
+
     None
 }
 
 #[tauri::command]
 fn focus_window(app: tauri::AppHandle, label: String) -> Result<(), String> {
     if let Some(win) = app.get_webview_window(&label) {
-        win.set_focus().map_err(|e| e.to_string())?;
+        #[cfg(target_os = "windows")]
+        if let Ok(hwnd) = win.hwnd() {
+            unsafe {
+                SetForegroundWindow(hwnd.0 as isize);
+            }
+        }
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
     }
     Ok(())
 }
@@ -296,6 +384,24 @@ fn focus_window(app: tauri::AppHandle, label: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if let Some(main_win) = app.get_webview_window("main") {
+                let _ = main_win.unminimize();
+                let _ = main_win.show();
+                let _ = main_win.set_focus();
+                #[cfg(target_os = "windows")]
+                if let Ok(hwnd) = main_win.hwnd() {
+                    unsafe {
+                        SetForegroundWindow(hwnd.0 as isize);
+                    }
+                }
+            }
+            if args.len() > 1 {
+                use tauri::Emitter;
+                let file_path = args[1].clone();
+                let _ = app.emit("open-file-from-cli", file_path);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -309,7 +415,8 @@ pub fn run() {
             open_containing_folder,
             find_window_at_point,
             focus_window,
-            get_current_window_label
+            get_current_window_label,
+            get_my_window_rect
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

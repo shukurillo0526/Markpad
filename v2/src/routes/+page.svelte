@@ -540,10 +540,14 @@
   }
 
   function handleImportRemoteTab(tab: Tab, targetIndex: number) {
-    const newTabs = [...tabs];
-    const safeIdx = Math.max(0, Math.min(targetIndex, newTabs.length));
-    newTabs.splice(safeIdx, 0, tab);
-    tabs = newTabs;
+    if (tabs.length === 1 && !tabs[0].filePath && tabs[0].content === '' && !tabs[0].isDirty && tabs[0].title === 'Untitled') {
+      tabs = [tab];
+    } else {
+      const newTabs = [...tabs];
+      const safeIdx = Math.max(0, Math.min(targetIndex, newTabs.length));
+      newTabs.splice(safeIdx, 0, tab);
+      tabs = newTabs;
+    }
     activeTabId = tab.id;
     showToast(`Added tab "${tab.title}" from another window`, 'success');
   }
@@ -557,8 +561,12 @@
     } else {
       // If the only tab was dragged out into another window, close this empty window
       try {
-        await getCurrentWindow().destroy();
-      } catch (e) {}
+        await getCurrentWindow().close();
+      } catch (e) {
+        try {
+          await getCurrentWindow().destroy();
+        } catch (err) {}
+      }
     }
   }
 
@@ -876,6 +884,15 @@
     } catch (e) {
       console.error('Failed to parse transfer / startup arguments', e);
     }
+
+    try {
+      const { listen } = await import('@tauri-apps/api/event');
+      await listen<string>('open-file-from-cli', async (event) => {
+        if (event.payload) {
+          await loadFileIntoTab(event.payload);
+        }
+      });
+    } catch (err) {}
 
     try {
       const appWindow = getCurrentWindow();
