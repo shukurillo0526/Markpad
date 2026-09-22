@@ -118,6 +118,29 @@ async fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
 }
 
 #[tauri::command]
+async fn save_file_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
+    let file_path = Path::new(&path);
+
+    if !file_path.is_absolute() {
+        return Err("Only absolute file paths are allowed.".to_string());
+    }
+
+    if let Some(parent) = file_path.parent() {
+        if !parent.exists() {
+            return Err("Parent directory does not exist.".to_string());
+        }
+    }
+
+    let tmp_path = format!("{}.markpad_tmp", path);
+    fs::write(&tmp_path, &bytes).map_err(|e| format!("Failed to save: {}", e))?;
+
+    fs::rename(&tmp_path, &path).map_err(|e| {
+        let _ = fs::remove_file(&tmp_path);
+        format!("Failed to finalize save: {}", e)
+    })
+}
+
+#[tauri::command]
 fn get_startup_args() -> Vec<String> {
     std::env::args().collect()
 }
@@ -131,6 +154,7 @@ pub fn run() {
             read_file_content,
             read_file_bytes,
             save_file_content,
+            save_file_bytes,
             get_startup_args
         ])
         .run(tauri::generate_context!())

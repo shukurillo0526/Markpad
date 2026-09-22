@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
 
   let {
     bytes = null,
@@ -10,13 +10,14 @@
   }>();
 
   let canvasEl: HTMLCanvasElement | null = $state(null);
+  let viewportContainer: HTMLDivElement | null = $state(null);
   let loading = $state(true);
   let errorMsg = $state<string | null>(null);
 
   let pdfDoc: any = null;
   let currentPage = $state(1);
   let totalPages = $state(0);
-  let scale = $state(1.2);
+  let scale = $state(1.0);
   let rotation = $state(0);
   let renderTask: any = null;
 
@@ -34,7 +35,7 @@
       const workerUrl = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default;
       pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
-      // Copy bytes to a fresh Uint8Array to avoid detached buffer issues
+      // Copy bytes to Uint8Array to avoid detached buffer issues
       const dataCopy = new Uint8Array(bytes);
       const loadingTask = pdfjsLib.getDocument({
         data: dataCopy,
@@ -44,13 +45,28 @@
       pdfDoc = await loadingTask.promise;
       totalPages = pdfDoc.numPages;
       currentPage = 1;
-      await renderCurrentPage();
+
+      // Auto-fit initial scale based on container width
+      if (viewportContainer) {
+        try {
+          const firstPage = await pdfDoc.getPage(1);
+          const unscaledVp = firstPage.getViewport({ scale: 1.0, rotation: 0 });
+          const availableW = viewportContainer.clientWidth - 48;
+          if (availableW > 200 && unscaledVp.width > 0) {
+            scale = Math.max(0.3, Math.min(2.0, Math.round((availableW / unscaledVp.width) * 100) / 100));
+          }
+        } catch (e) {}
+      }
     } catch (err) {
       console.error('PDF.js loading error:', err);
       errorMsg = (err as Error).message || 'Failed to load PDF document';
     } finally {
       loading = false;
     }
+
+    // Await Svelte DOM update so canvasEl is mounted
+    await tick();
+    await renderCurrentPage();
   }
 
   async function renderCurrentPage() {
@@ -60,6 +76,7 @@
       try {
         renderTask.cancel();
       } catch (e) {}
+      renderTask = null;
     }
 
     try {
@@ -133,9 +150,26 @@
     renderCurrentPage();
   }
 
-  function fitWidth() {
-    scale = 1.4;
-    renderCurrentPage();
+  async function fitWidth() {
+    if (!viewportContainer || !pdfDoc) return;
+    try {
+      const page = await pdfDoc.getPage(currentPage);
+      const unscaledVp = page.getViewport({ scale: 1.0, rotation });
+      const availableWidth = viewportContainer.clientWidth - 48;
+      scale = Math.max(0.2, Math.round((availableWidth / unscaledVp.width) * 100) / 100);
+      await renderCurrentPage();
+    } catch (e) {}
+  }
+
+  async function fitPage() {
+    if (!viewportContainer || !pdfDoc) return;
+    try {
+      const page = await pdfDoc.getPage(currentPage);
+      const unscaledVp = page.getViewport({ scale: 1.0, rotation });
+      const availableHeight = viewportContainer.clientHeight - 48;
+      scale = Math.max(0.2, Math.round((availableHeight / unscaledVp.height) * 100) / 100);
+      await renderCurrentPage();
+    } catch (e) {}
   }
 
   function rotateClockwise() {
@@ -220,6 +254,9 @@
       <button class="tool-btn text-btn" onclick={fitWidth} title="Fit Width">
         Fit Width
       </button>
+      <button class="tool-btn text-btn" onclick={fitPage} title="Fit Page">
+        Fit Page
+      </button>
       <button class="tool-btn text-btn" onclick={resetZoom} title="Reset 100%">
         100%
       </button>
@@ -236,22 +273,24 @@
   </div>
 
   <!-- Main View Area -->
-  <div class="pdf-viewport">
+  <div class="pdf-viewport" bind:this={viewportContainer}>
     {#if loading}
       <div class="center-message">
         <div class="spinner"></div>
         <span>Rendering PDF Document...</span>
       </div>
-    {:else if errorMsg}
+    {/if}
+
+    {#if errorMsg}
       <div class="error-box">
         <h3>Unable to display PDF</h3>
         <p>{errorMsg}</p>
       </div>
-    {:else}
-      <div class="canvas-wrapper">
-        <canvas bind:this={canvasEl} class="pdf-canvas"></canvas>
-      </div>
     {/if}
+
+    <div class="canvas-wrapper" style:display={loading || errorMsg ? 'none' : 'inline-block'}>
+      <canvas bind:this={canvasEl} class="pdf-canvas"></canvas>
+    </div>
   </div>
 </div>
 
@@ -369,20 +408,19 @@
   .pdf-viewport {
     flex: 1;
     overflow: auto;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
+    text-align: center;
     padding: 24px;
-    background: var(--bg-color, #090d16);
+    background: #1e293b;
     position: relative;
   }
 
   .canvas-wrapper {
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     border-radius: 4px;
     background: #ffffff;
     overflow: hidden;
     line-height: 0;
+    margin: 0 auto;
   }
 
   .pdf-canvas {
@@ -394,7 +432,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    padding: 40px;
     gap: 14px;
     color: #e2e8f0;
     font-size: 13px;
@@ -410,7 +448,7 @@
   }
 
   .error-box {
-    margin: 40px;
+    margin: 40px auto;
     padding: 20px;
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.3);

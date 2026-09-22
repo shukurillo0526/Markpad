@@ -63,6 +63,7 @@
   let showExportModal = $state(false);
 
   let editorRef: { triggerSearch: () => void; triggerGotoLine: () => void } | undefined = $state();
+  let officeViewerRef: { saveDocument?: () => Promise<void> } | undefined = $state();
 
   // ─── Derived ─────────────────────────────────────────────────────────
   let isDarkMode = $derived(themePreference === 'dark');
@@ -433,6 +434,18 @@
   async function saveActiveFile(forceSaveAs = false) {
     if (!activeTab) return;
 
+    if (activeTab.mode === 'office') {
+      if (officeViewerRef?.saveDocument) {
+        await officeViewerRef.saveDocument();
+      }
+      return;
+    }
+
+    if (activeTab.mode === 'pdf') {
+      showToast('PDF documents are read-only.', 'error');
+      return;
+    }
+
     let targetPath = activeTab.filePath;
 
     if (!targetPath || forceSaveAs) {
@@ -789,7 +802,15 @@
       {:else if activeTab.mode === 'pdf'}
         <PdfViewer bytes={activeTab.bytes || null} filePath={activeTab.filePath || ''} />
       {:else if activeTab.mode === 'office'}
-        <OfficeViewer bytes={activeTab.bytes || null} extension={activeTab.extension} filePath={activeTab.filePath || ''} />
+        <OfficeViewer
+          bind:this={officeViewerRef}
+          bytes={activeTab.bytes || null}
+          extension={activeTab.extension}
+          filePath={activeTab.filePath || ''}
+          onDirtyChange={(dirty) => {
+            if (activeTab) activeTab.isDirty = dirty;
+          }}
+        />
       {:else}
         <Editor
           bind:this={editorRef}

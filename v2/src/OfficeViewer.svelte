@@ -1,28 +1,35 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import DataViewer from './DataViewer.svelte';
+  import { onMount, tick } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
 
   let {
     bytes = null,
     extension = 'xlsx',
-    filePath = ''
+    filePath = '',
+    onDirtyChange = () => {}
   } = $props<{
     bytes: Uint8Array | null;
     extension?: string;
     filePath?: string;
+    onDirtyChange?: (isDirty: boolean) => void;
   }>();
 
   let loading = $state(true);
+  let saving = $state(false);
   let errorMsg = $state<string | null>(null);
+  let toastMsg = $state<string | null>(null);
 
-  // Excel state
+  // ─── Excel Spreadsheet State ──────────────────────────────────────────
   let workbookInstance: any = null;
   let sheetNames = $state<string[]>([]);
   let activeSheet = $state<string>('');
-  let currentSheetCsv = $state<string>('');
-  let rowCount = $state<number>(0);
+  let sheetData = $state<string[][]>([]);
+  let searchQuery = $state<string>('');
+  let currentPage = $state<number>(1);
+  const pageSize = 100;
 
-  // Word state
+  // ─── Word Document State ──────────────────────────────────────────────
+  let docxPageEl: HTMLDivElement | null = $state(null);
   let docxHtml = $state<string>('');
   let wordCount = $state<number>(0);
   let wordTheme = $state<'paper' | 'dark'>('paper');
@@ -30,6 +37,14 @@
 
   let ext = $derived(extension.toLowerCase());
 
+  function showNotification(msg: string) {
+    toastMsg = msg;
+    setTimeout(() => {
+      if (toastMsg === msg) toastMsg = null;
+    }, 3000);
+  }
+
+  // ─── Document Loading ────────────────────────────────────────────────
   async function loadDocument() {
     if (!bytes || bytes.length === 0) {
       loading = false;
@@ -47,17 +62,13 @@
         sheetNames = workbookInstance.SheetNames || [];
         if (sheetNames.length > 0) {
           activeSheet = sheetNames[0];
-          updateSheetData(activeSheet, XLSX);
+          loadSheetData(activeSheet, XLSX);
         }
       } else if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
         const mammoth = await import('mammoth');
         const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
         docxHtml = result.value || '<p>Document is empty</p>';
-
-        // Calculate approximate word count
-        const textOnly = docxHtml.replace(/<[^>]+>/g, ' ');
-        const words = textOnly.trim().split(/\s+/).filter(Boolean);
-        wordCount = words.length;
+        updateWordCount();
       }
     } catch (err) {
       console.error('Office parsing error:', err);
@@ -67,29 +78,107 @@
     }
   }
 
-  function updateSheetData(name: string, XLSX?: any) {
+  // ─── Excel Operations ─────────────────────────────────────────────────
+  function loadSheetData(name: string, XLSXModule?: any) {
     if (!workbookInstance) return;
     activeSheet = name;
+    currentPage = 1;
     const sheet = workbookInstance.Sheets[name];
     if (sheet) {
-      const csv = (XLSX || (window as any).XLSX)?.utils?.sheet_to_csv(sheet) || '';
-      currentSheetCsv = csv;
-      rowCount = csv ? csv.split('\n').filter(Boolean).length : 0;
+      const XLSX = XLSXModule || (window as any).XLSX;
+      // Convert sheet to array of arrays (AOA)
+      const rawData = XLSX?.utils?.sheet_to_json(sheet, { header: 1, defval: '' }) as string[][];
+      sheetData = Array.isArray(rawData) && rawData.length > 0 ? rawData : [['']];
     } else {
-      currentSheetCsv = '';
-      rowCount = 0;
+      sheetData = [['']];
     }
   }
 
   async function selectSheet(name: string) {
-    if (!workbookInstance) return;
     const XLSX = await import('xlsx');
-    updateSheetData(name, XLSX);
+    loadSheetData(name, XLSX);
   }
 
-  function exportCurrentSheetCsv() {
-    if (!currentSheetCsv) return;
-    const blob = new Blob([currentSheetCsv], { type: 'text/csv;charset=utf-8;' });
+  function handleCellChange(rowIdx: number, colIdx: number, val: string) {
+    if (!sheetData[rowIdx]) return;
+    sheetData[rowIdx][colIdx] = val;
+    onDirtyChange(true);
+  }
+
+  function addRow() {
+    const colCount = sheetData[0]?.length || 5;
+    const newRow = new Array(colCount).fill('');
+    sheetData = [...sheetData, newRow];
+    onDirtyChange(true);
+    showNotification('Added new row');
+  }
+
+  function addColumn() {
+    sheetData = sheetData.map((row) => [...row, '']);
+    onDirtyChange(true);
+    showNotification('Added new column');
+  }
+
+  function deleteLastRow() {
+    if (sheetData.length <= 1) return;
+    sheetData = sheetData.slice(0, -1);
+    onDirtyChange(true);
+    showNotification('Removed last row');
+  }
+
+  let filteredRows = $derived.by(() => {
+    if (!searchQuery.trim()) return sheetData;
+    const q = searchQuery.toLowerCase();
+    const header = sheetData[0] || [];
+    const matched = sheetData.slice(1).filter((row) =>
+      row.some((cell) => String(cell).toLowerCase().includes(q))
+    );
+    return [header, ...matched];
+  });
+
+  let totalDataRows = $derived(Math.max(0, filteredRows.length - 1));
+  let totalPages = $derived(Math.max(1, Math.ceil(totalDataRows / pageSize)));
+  let visibleRows = $derived.by(() => {
+    if (filteredRows.length <= 1) return [];
+    const start = 1 + (currentPage - 1) * pageSize;
+    const end = Math.min(filteredRows.length, start + pageSize);
+    return filteredRows.slice(start, end);
+  });
+
+  export async function saveExcelDocument() {
+    if (!workbookInstance || !filePath) {
+      showNotification('Cannot save: No file path');
+      return;
+    }
+
+    saving = true;
+    try {
+      const XLSX = await import('xlsx');
+      // Update active sheet in workbook
+      const newSheet = XLSX.utils.aoa_to_sheet(sheetData);
+      workbookInstance.Sheets[activeSheet] = newSheet;
+
+      // Write updated workbook to Uint8Array
+      const outArray = XLSX.write(workbookInstance, { bookType: 'xlsx', type: 'array' });
+      const uint8 = new Uint8Array(outArray);
+
+      await invoke('save_file_bytes', { path: filePath, bytes: Array.from(uint8) });
+      onDirtyChange(false);
+      showNotification('Spreadsheet saved successfully');
+    } catch (e) {
+      console.error('Save error:', e);
+      showNotification(`Failed to save: ${e}`);
+    } finally {
+      saving = false;
+    }
+  }
+
+  async function exportCurrentSheetCsv() {
+    if (sheetData.length === 0) return;
+    const XLSX = await import('xlsx');
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    const csv = XLSX.utils.sheet_to_csv(sheet);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -98,13 +187,66 @@
     URL.revokeObjectURL(url);
   }
 
+  // ─── Word Document Operations ─────────────────────────────────────────
+  function updateWordCount() {
+    if (!docxHtml) {
+      wordCount = 0;
+      return;
+    }
+    const textOnly = docxHtml.replace(/<[^>]+>/g, ' ');
+    const words = textOnly.trim().split(/\s+/).filter(Boolean);
+    wordCount = words.length;
+  }
+
+  function handleDocxInput() {
+    if (docxPageEl) {
+      docxHtml = docxPageEl.innerHTML;
+      updateWordCount();
+      onDirtyChange(true);
+    }
+  }
+
+  function formatDoc(command: string, value: string | undefined = undefined) {
+    if (typeof document !== 'undefined') {
+      document.execCommand(command, false, value);
+      if (docxPageEl) {
+        docxHtml = docxPageEl.innerHTML;
+        updateWordCount();
+        onDirtyChange(true);
+      }
+    }
+  }
+
+  export async function saveWordDocument() {
+    if (!docxPageEl || !filePath) {
+      showNotification('Cannot save: No file path');
+      return;
+    }
+
+    saving = true;
+    try {
+      const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>${docxPageEl.innerHTML}</body></html>`;
+      const { asBlob } = await import('html-docx-js-typescript');
+      const docxResult: any = await asBlob(fullHtml);
+      const uint8 = new Uint8Array(docxResult.buffer ? docxResult.buffer : docxResult);
+
+      await invoke('save_file_bytes', { path: filePath, bytes: Array.from(uint8) });
+      onDirtyChange(false);
+      showNotification('Word document saved successfully');
+    } catch (e) {
+      console.error('Word save error:', e);
+      showNotification(`Failed to save: ${e}`);
+    } finally {
+      saving = false;
+    }
+  }
+
   async function copyDocxText() {
-    if (!docxHtml) return;
-    const tempEl = document.createElement('div');
-    tempEl.innerHTML = docxHtml;
-    const text = tempEl.innerText || tempEl.textContent || '';
+    if (!docxPageEl) return;
+    const text = docxPageEl.innerText || docxPageEl.textContent || '';
     try {
       await navigator.clipboard.writeText(text);
+      showNotification('Copied text to clipboard');
     } catch (e) {
       console.error('Failed to copy text', e);
     }
@@ -126,6 +268,23 @@
     fontScale = 100;
   }
 
+  export async function saveDocument() {
+    if (ext === 'xlsx' || ext === 'xls') {
+      await saveExcelDocument();
+    } else if (ext === 'docx' || ext === 'doc' || ext === 'rtf') {
+      await saveWordDocument();
+    }
+  }
+
+  // Handle Ctrl+S for in-place document saving
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.ctrlKey && (e.key === 's' || e.key === 'S')) {
+      e.preventDefault();
+      e.stopPropagation();
+      saveDocument();
+    }
+  }
+
   $effect(() => {
     if (bytes) {
       loadDocument();
@@ -133,7 +292,13 @@
   });
 </script>
 
-<div class="office-viewer-container">
+<svelte:window onkeydown={handleKeyDown} />
+
+<div class="office-container">
+  {#if toastMsg}
+    <div class="office-toast">{toastMsg}</div>
+  {/if}
+
   {#if loading}
     <div class="center-state">
       <div class="spinner"></div>
@@ -145,17 +310,11 @@
       <p>{errorMsg}</p>
     </div>
   {:else if ext === 'xlsx' || ext === 'xls'}
-    <!-- Excel Workbook View -->
+    <!-- ─── Excel Spreadsheet Editor & Viewer ───────────────────────── -->
     <div class="office-toolbar">
       <div class="toolbar-group">
-        <span class="office-badge excel-badge">📗 EXCEL (XLSX)</span>
-        <span class="toolbar-stat">{sheetNames.length} Sheet{sheetNames.length === 1 ? '' : 's'}</span>
-        {#if rowCount > 0}
-          <span class="toolbar-stat">• {rowCount} Rows</span>
-        {/if}
-      </div>
-
-      <div class="toolbar-group">
+        <span class="office-badge excel-badge">📗 EXCEL SPREADSHEET</span>
+        <!-- Sheet Selector Tabs -->
         <div class="sheet-tabs-list">
           {#each sheetNames as sheet}
             <button
@@ -170,34 +329,151 @@
         </div>
       </div>
 
+      <div class="toolbar-group">
+        <button class="tool-btn" onclick={addRow} title="Add New Row">➕ Row</button>
+        <button class="tool-btn" onclick={addColumn} title="Add New Column">➕ Column</button>
+        <button class="tool-btn" onclick={deleteLastRow} title="Delete Last Row">🗑️ Row</button>
+
+        <div class="search-box">
+          <input
+            type="text"
+            bind:value={searchQuery}
+            placeholder="Search cells..."
+            class="search-input"
+          />
+          {#if searchQuery}
+            <button class="clear-search" onclick={() => (searchQuery = '')}>&times;</button>
+          {/if}
+        </div>
+      </div>
+
       <div class="toolbar-group end-group">
-        <button class="tool-action-btn" onclick={exportCurrentSheetCsv} title="Export active sheet as CSV">
+        <button
+          class="save-btn"
+          onclick={saveExcelDocument}
+          disabled={saving}
+          title="Save Spreadsheet (Ctrl+S)"
+        >
+          {saving ? 'Saving...' : '💾 Save'}
+        </button>
+        <button class="tool-btn" onclick={exportCurrentSheetCsv} title="Export current sheet as CSV">
           📥 Export CSV
         </button>
-        <span class="readonly-badge">READ ONLY</span>
       </div>
     </div>
 
-    <div class="sheet-content">
-      <DataViewer content={currentSheetCsv} extension="csv" />
-    </div>
-  {:else if ext === 'docx' || ext === 'doc' || ext === 'rtf'}
-    <!-- Word Document View -->
-    <div class="office-toolbar">
-      <div class="toolbar-group">
-        <span class="office-badge word-badge">📘 WORD (DOCX)</span>
-        {#if wordCount > 0}
-          <span class="toolbar-stat">{wordCount.toLocaleString()} Words</span>
+    <!-- Spreadsheet Grid -->
+    <div class="spreadsheet-view">
+      <div class="grid-header-bar">
+        <span class="stat-text">
+          Showing {visibleRows.length} of {totalDataRows} rows &bull; {sheetData[0]?.length || 0} columns
+        </span>
+        {#if totalPages > 1}
+          <div class="grid-pagination">
+            <button
+              class="page-btn"
+              disabled={currentPage <= 1}
+              onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+            >
+              &larr; Prev
+            </button>
+            <span class="page-info">Page {currentPage} of {totalPages}</span>
+            <button
+              class="page-btn"
+              disabled={currentPage >= totalPages}
+              onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
+            >
+              Next &rarr;
+            </button>
+          </div>
         {/if}
       </div>
 
+      <div class="table-scroll-container">
+        <table class="spreadsheet-table">
+          <thead>
+            <tr>
+              <th class="row-index-th">#</th>
+              {#each sheetData[0] || [] as header, colIdx}
+                <th>
+                  <div
+                    contenteditable="true"
+                    class="editable-cell header-cell"
+                    onblur={(e) => handleCellChange(0, colIdx, e.currentTarget.innerText)}
+                  >
+                    {header || `Col ${colIdx + 1}`}
+                  </div>
+                </th>
+              {/each}
+            </tr>
+          </thead>
+          <tbody>
+            {#each visibleRows as row, rIdx}
+              {@const actualRowIdx = 1 + (currentPage - 1) * pageSize + rIdx}
+              <tr>
+                <td class="row-index-td">{actualRowIdx}</td>
+                {#each row as cell, cIdx}
+                  <td>
+                    <div
+                      contenteditable="true"
+                      class="editable-cell"
+                      onblur={(e) => handleCellChange(actualRowIdx, cIdx, e.currentTarget.innerText)}
+                    >
+                      {cell}
+                    </div>
+                  </td>
+                {/each}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {:else if ext === 'docx' || ext === 'doc' || ext === 'rtf'}
+    <!-- ─── Word Document Rich Text Editor & Reader ─────────────────── -->
+    <div class="office-toolbar">
       <div class="toolbar-group">
+        <span class="office-badge word-badge">📘 WORD EDITOR</span>
         <button
-          class="tool-btn"
-          onclick={toggleWordTheme}
-          title="Toggle Paper White / Dark Theme"
+          class="save-btn"
+          onclick={saveWordDocument}
+          disabled={saving}
+          title="Save Document (Ctrl+S)"
         >
-          {wordTheme === 'paper' ? '🌙 Dark Mode' : '☀️ Paper White'}
+          {saving ? 'Saving...' : '💾 Save'}
+        </button>
+      </div>
+
+      <!-- In-place Rich Text Tools -->
+      <div class="toolbar-group format-tools">
+        <button class="tool-btn bold-btn" onclick={() => formatDoc('bold')} title="Bold (Ctrl+B)">B</button>
+        <button class="tool-btn italic-btn" onclick={() => formatDoc('italic')} title="Italic (Ctrl+I)">I</button>
+        <button class="tool-btn underline-btn" onclick={() => formatDoc('underline')} title="Underline (Ctrl+U)">U</button>
+        <button class="tool-btn strike-btn" onclick={() => formatDoc('strikeThrough')} title="Strikethrough">S</button>
+
+        <div class="toolbar-divider"></div>
+
+        <button class="tool-btn" onclick={() => formatDoc('formatBlock', '<h1>')} title="Heading 1">H1</button>
+        <button class="tool-btn" onclick={() => formatDoc('formatBlock', '<h2>')} title="Heading 2">H2</button>
+        <button class="tool-btn" onclick={() => formatDoc('formatBlock', '<p>')} title="Normal Paragraph">¶</button>
+
+        <div class="toolbar-divider"></div>
+
+        <button class="tool-btn" onclick={() => formatDoc('insertUnorderedList')} title="Bullet List">• List</button>
+        <button class="tool-btn" onclick={() => formatDoc('insertOrderedList')} title="Numbered List">1. List</button>
+
+        <div class="toolbar-divider"></div>
+
+        <button class="tool-btn" onclick={() => formatDoc('justifyLeft')} title="Align Left">⇤</button>
+        <button class="tool-btn" onclick={() => formatDoc('justifyCenter')} title="Align Center">≡</button>
+        <button class="tool-btn" onclick={() => formatDoc('justifyRight')} title="Align Right">⇥</button>
+      </div>
+
+      <div class="toolbar-group end-group">
+        <span class="word-stat">{wordCount.toLocaleString()} Words</span>
+
+        <button class="tool-btn" onclick={toggleWordTheme} title="Toggle Dark/Light Mode">
+          {wordTheme === 'paper' ? '🌙 Dark' : '☀️ Paper'}
         </button>
 
         <div class="font-controls">
@@ -206,21 +482,21 @@
           <button class="tool-btn font-btn" onclick={increaseFontSize} title="Larger Font">A+</button>
         </div>
 
-        <button class="tool-btn" onclick={copyDocxText} title="Copy all text to clipboard">
-          📋 Copy Text
+        <button class="tool-btn" onclick={copyDocxText} title="Copy Plain Text">
+          📋 Copy
         </button>
-      </div>
-
-      <div class="toolbar-group end-group">
-        <span class="readonly-badge">READ ONLY</span>
       </div>
     </div>
 
+    <!-- Word Document Flowing Scrollable View -->
     <div class="docx-wrapper" class:dark-paper={wordTheme === 'dark'}>
       <div
+        bind:this={docxPageEl}
         class="docx-page"
         class:dark-page={wordTheme === 'dark'}
         style="font-size: {fontScale}%"
+        contenteditable="true"
+        oninput={handleDocxInput}
       >
         {@html docxHtml}
       </div>
@@ -229,46 +505,73 @@
 </div>
 
 <style>
-  .office-viewer-container {
+  .office-container {
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
     background: var(--bg-color, #090d16);
-    color: var(--text-color, #0f172a);
+    color: var(--text-color, #f8fafc);
     overflow: hidden;
+    position: relative;
   }
 
-  /* Office Toolbar */
+  .office-toast {
+    position: absolute;
+    top: 48px;
+    right: 20px;
+    background: #0284c7;
+    color: #ffffff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    animation: fadeIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Toolbar */
   .office-toolbar {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 8px;
     padding: 6px 14px;
     background: var(--surface-bg, #0f172a);
     border-bottom: 1px solid var(--border-color, #1e293b);
     user-select: none;
     flex-shrink: 0;
     flex-wrap: wrap;
-    z-index: 5;
+    z-index: 10;
   }
 
   .toolbar-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
   }
 
   .end-group {
     margin-left: auto;
   }
 
+  .toolbar-divider {
+    width: 1px;
+    height: 16px;
+    background: var(--border-color, #334155);
+    margin: 0 3px;
+  }
+
   .office-badge {
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.5px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     border-radius: 4px;
   }
 
@@ -284,21 +587,25 @@
     border: 1px solid rgba(56, 189, 248, 0.3);
   }
 
-  .readonly-badge {
-    font-size: 9px;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    padding: 2px 6px;
+  .save-btn {
+    background: #10b981;
+    color: #ffffff;
+    border: 1px solid #059669;
     border-radius: 4px;
-    background: var(--surface-secondary, #1e293b);
-    color: var(--status-text, #94a3b8);
-    border: 1px solid var(--border-color, #334155);
+    padding: 3px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s ease;
   }
 
-  .toolbar-stat {
-    font-size: 11px;
-    color: var(--status-text, #94a3b8);
-    font-weight: 500;
+  .save-btn:hover:not(:disabled) {
+    background: #059669;
+  }
+
+  .save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .tool-btn {
@@ -306,7 +613,7 @@
     color: var(--text-color, #e2e8f0);
     border: 1px solid var(--border-color, #334155);
     border-radius: 4px;
-    padding: 3px 9px;
+    padding: 3px 8px;
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
@@ -320,23 +627,10 @@
     border-color: #38bdf8;
   }
 
-  .tool-action-btn {
-    background: var(--surface-secondary, #1e293b);
-    color: var(--text-color, #e2e8f0);
-    border: 1px solid var(--border-color, #334155);
-    border-radius: 4px;
-    padding: 3px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
-  }
-
-  .tool-action-btn:hover {
-    background: #10b981;
-    color: #ffffff;
-    border-color: #10b981;
-  }
+  .bold-btn { font-weight: 800; }
+  .italic-btn { font-style: italic; }
+  .underline-btn { text-decoration: underline; }
+  .strike-btn { text-decoration: line-through; }
 
   .font-controls {
     display: flex;
@@ -360,8 +654,14 @@
   }
 
   .font-scale {
-    min-width: 44px;
+    min-width: 42px;
     text-align: center;
+  }
+
+  .word-stat {
+    font-size: 11px;
+    color: var(--status-text, #94a3b8);
+    font-weight: 500;
   }
 
   /* Sheet Tabs */
@@ -370,7 +670,7 @@
     align-items: center;
     gap: 4px;
     overflow-x: auto;
-    max-width: 50vw;
+    max-width: 35vw;
   }
 
   .sheet-tab {
@@ -383,12 +683,6 @@
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s ease, border-color 0.15s ease;
-  }
-
-  .sheet-tab:hover {
-    border-color: #10b981;
-    color: var(--text-color, #ffffff);
   }
 
   .sheet-tab.active {
@@ -398,50 +692,179 @@
     font-weight: 700;
   }
 
-  .sheet-content {
-    flex: 1;
-    overflow: hidden;
+  .search-box {
+    position: relative;
     display: flex;
-    flex-direction: column;
+    align-items: center;
   }
 
-  /* Word Document View */
+  .search-input {
+    background: var(--surface-secondary, #1e293b);
+    border: 1px solid var(--border-color, #334155);
+    color: var(--text-color, #f8fafc);
+    border-radius: 4px;
+    padding: 3px 20px 3px 8px;
+    font-size: 11px;
+    width: 130px;
+    outline: none;
+  }
+
+  .search-input:focus {
+    border-color: #38bdf8;
+    width: 160px;
+  }
+
+  .clear-search {
+    position: absolute;
+    right: 4px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  /* Spreadsheet View */
+  .spreadsheet-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-color, #090d16);
+  }
+
+  .grid-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 14px;
+    background: var(--surface-bg, #0f172a);
+    border-bottom: 1px solid var(--border-color, #1e293b);
+    font-size: 11px;
+    color: var(--status-text, #94a3b8);
+  }
+
+  .grid-pagination {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .page-btn {
+    background: var(--surface-secondary, #1e293b);
+    border: 1px solid var(--border-color, #334155);
+    color: var(--text-color, #cbd5e1);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  .page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .table-scroll-container {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+  }
+
+  .spreadsheet-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+  }
+
+  .spreadsheet-table th, .spreadsheet-table td {
+    border: 1px solid var(--border-color, #1e293b);
+    padding: 0;
+    white-space: nowrap;
+  }
+
+  .spreadsheet-table th {
+    background: var(--surface-bg, #0f172a);
+    color: #38bdf8;
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .row-index-th, .row-index-td {
+    width: 44px;
+    text-align: center;
+    background: var(--surface-secondary, #1e293b);
+    color: var(--status-text, #64748b);
+    font-weight: 600;
+    font-size: 10px;
+    user-select: none;
+    padding: 4px 6px !important;
+  }
+
+  .editable-cell {
+    padding: 5px 8px;
+    min-width: 60px;
+    min-height: 20px;
+    outline: none;
+    color: var(--text-color, #e2e8f0);
+    box-sizing: border-box;
+  }
+
+  .editable-cell:focus {
+    background: rgba(56, 189, 248, 0.15);
+    box-shadow: inset 0 0 0 1.5px #38bdf8;
+  }
+
+  .header-cell {
+    font-weight: 700;
+    color: #38bdf8;
+  }
+
+  /* ─── Word Flowing Document View ───────────────────────────────── */
   .docx-wrapper {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 32px 20px;
-    display: flex;
-    justify-content: center;
-    background: #e2e8f0;
+    padding: 24px 16px;
+    background: #cbd5e1;
     box-sizing: border-box;
     width: 100%;
   }
 
   .docx-wrapper.dark-paper {
-    background: #0b1120;
+    background: #0f172a;
   }
 
   .docx-page {
+    margin: 0 auto 48px auto;
     width: 100%;
-    max-width: 820px;
+    max-width: 860px;
+    min-height: calc(100vh - 140px);
+    height: auto;
     background: #ffffff;
-    color: #1e293b;
+    color: #0f172a;
     padding: 56px 64px;
-    border-radius: 6px;
-    box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     line-height: 1.75;
-    min-height: 600px;
     box-sizing: border-box;
     overflow-wrap: break-word;
     word-wrap: break-word;
+    outline: none;
+  }
+
+  .docx-page:focus {
+    box-shadow: 0 4px 28px rgba(56, 189, 248, 0.25);
   }
 
   .docx-page.dark-page {
     background: #1e293b;
     color: #f1f5f9;
-    box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6);
   }
 
   :global(.docx-page h1, .docx-page h2, .docx-page h3) {
@@ -462,7 +885,6 @@
     border-collapse: collapse;
     margin: 20px 0;
     display: table;
-    overflow-x: auto;
   }
 
   :global(.docx-page th, .docx-page td) {
@@ -493,16 +915,6 @@
 
   :global(.docx-page.dark-page blockquote) {
     color: #94a3b8;
-  }
-
-  :global(.docx-page pre) {
-    background: rgba(128, 128, 128, 0.1);
-    padding: 14px;
-    border-radius: 6px;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: 'JetBrains Mono', Consolas, monospace;
-    font-size: 90%;
   }
 
   /* Center / Error */
@@ -542,9 +954,6 @@
   @media (max-width: 768px) {
     .docx-page {
       padding: 24px 20px;
-    }
-    .sheet-tabs-list {
-      max-width: 100%;
     }
   }
 </style>
