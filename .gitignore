@@ -1,5 +1,6 @@
 node_modules/
 store-bundle/
+screenshots/
 dist/
 target/
 .DS_Store
