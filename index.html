@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Markpad Native — The VLC of Text Files | Ultra-Fast Offline Editor</title>
+    <meta name="description" content="Markpad Native is a blazing-fast, lightweight text and document utility built in Rust. Instantly open, edit, and explore Markdown, PDF, Excel, Word, JSON, CSV, and code files—100% offline with zero bloat.">
+    
+    <meta property="og:title" content="Markpad Native — The VLC of Text Files" />
+    <meta property="og:description" content="Instantly open, edit, and explore Markdown, PDF, Excel, Word, JSON, CSV, and code files—100% offline with zero bloat." />
+    <meta property="og:image" content="https://shukurillo0526.github.io/Markpad/favicon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://shukurillo0526.github.io/Markpad/" />
+    
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Markpad Native — The VLC of Text Files" />
+    <meta name="twitter:description" content="Instantly open, edit, and explore Markdown, PDF, Excel, Word, JSON, CSV, and code files—100% offline with zero bloat." />
+    <meta name="twitter:image" content="https://shukurillo0526.github.io/Markpad/favicon.png" />
+    <meta name="theme-color" content="#050508" />
+    
+    <link rel="canonical" href="https://shukurillo0526.github.io/Markpad/" />
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <link rel="apple-touch-icon" href="./favicon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="./assets/index-a1Gny6C6.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-De9V-jKY.css">
+  </head>
+  <body>
+    <!-- Background Gradient Glows -->
+    <div class="blob blob-1" aria-hidden="true"></div>
+    <div class="blob blob-2" aria-hidden="true"></div>
+    
+    <header>
+      <div class="container nav-container">
+        <a href="#" class="logo">Markpad<span>Native</span></a>
+        <nav>
+          <a href="#features">Features</a>
+          <a href="#why-markpad">Why Markpad</a>
+          <a href="#formats">Formats</a>
+          <a href="#support">Feedback & Support</a>
+          <a href="#download" class="nav-btn">Get the App</a>
+        </nav>
+      </div>
+    </header>
+
+    <main>
+      <!-- Hero Section -->
+      <section class="hero container">
+        <div class="hero-content">
+          <div class="badge">⚡ Markpad Native 2.0 • Ultra-Light • 100% Local • Zero Telemetry</div>
+          <h1 class="hero-title">The <span>VLC</span> of Text Files</h1>
+          <p class="hero-subtitle">
+            Open, edit, and format any text, office document, or data file you throw at it—completely offline. Powered by a sub-millisecond native Rust backend with zero bloat and zero tracking.
+          </p>
+          
+          <div class="cta-group" id="download">
+            <!-- Microsoft Store Button -->
+            <a href="https://apps.microsoft.com/detail/9NRCZSC4800K" target="_blank" rel="noopener noreferrer" class="btn btn-primary store-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M11.4 24H0V11.4h11.4V24zM24 24H12.6V11.4H24V24zM11.4 10.6H0V0h11.4v10.6zM24 10.6H12.6V0H24v10.6z"/>
+              </svg>
+              <div class="btn-text">
+                <span>Get it from</span>
+                <strong>Microsoft Store</strong>
+              </div>
+            </a>
+
+            <!-- Direct EXE Button -->
+            <a href="./downloads/Markpad_Native_2.0.0_x64-setup.exe" id="download-exe-btn" class="btn btn-secondary" download>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <div class="btn-text">
+                <span>Download directly</span>
+                <strong>Windows (.exe)</strong>
+              </div>
+            </a>
+          </div>
+
+          <!-- Hero Trust Badges -->
+          <div class="hero-trust-badges">
+            <span class="trust-badge">⚡ &lt; 30ms Launch</span>
+            <span class="trust-badge">📁 20+ Formats Built-In</span>
+            <span class="trust-badge">🪶 &lt; 35MB RAM Usage</span>
+            <span class="trust-badge">🔒 100% Offline & Private</span>
+            <span class="trust-badge">🌐 7 Built-In Languages</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- App Interactive Showcase Mockup -->
+      <section class="app-screenshot container animate-on-scroll">
+        <div class="mockup-window">
+          <!-- Window Header Bar -->
+          <div class="mockup-header">
+            <div class="mockup-buttons">
+              <span class="mockup-btn close"></span>
+              <span class="mockup-btn minimize"></span>
+              <span class="mockup-btn maximize"></span>
+            </div>
+            <div class="mockup-tab-bar">
+              <div class="mockup-tab active">
+                <span class="tab-icon">📝</span>
+                <span class="tab-title">01_quickstart.md</span>
+                <span class="tab-close">&times;</span>
+              </div>
+              <div class="mockup-tab">
+                <span class="tab-icon">📊</span>
+                <span class="tab-title">24_roadmap.xlsx</span>
+              </div>
+              <div class="mockup-tab">
+                <span class="tab-icon">📕</span>
+                <span class="tab-title">27_brief.pdf</span>
+              </div>
+              <div class="mockup-tab">
+                <span class="tab-icon">⚙️</span>
+                <span class="tab-title">04_pipeline.yaml</span>
+              </div>
+            </div>
+            <div class="mockup-actions">
+              <span class="mockup-badge">Edit</span>
+              <span class="mockup-badge">Preview</span>
+            </div>
+          </div>
+
+          <!-- Editor Body -->
+          <div class="mockup-body">
+            <div class="code-line"><span class="line-num">1</span><span class="md-h1"># Welcome to Markpad Native v2.0</span></div>
+            <div class="code-line"><span class="line-num">2</span></div>
+            <div class="code-line"><span class="line-num">3</span><span class="md-text">The <strong>VLC of Text Files</strong> — open, edit, and explore any text or document format at instant speed.</span></div>
+            <div class="code-line"><span class="line-num">4</span></div>
+            <div class="code-line"><span class="line-num">5</span><span class="md-h2">## Core Capabilities</span></div>
+            <div class="code-line"><span class="line-num">6</span><span class="md-bullet">-</span> <span class="md-tag">Office Suite:</span> Native multi-sheet Excel (.xlsx), Word (.docx), and offline PDF viewers.</div>
+            <div class="code-line"><span class="line-num">7</span><span class="md-bullet">-</span> <span class="md-tag">Data Tools:</span> Collapsible JSON/YAML tree explorer, CSV table with pagination, and log filtering.</div>
+            <div class="code-line"><span class="line-num">8</span><span class="md-bullet">-</span> <span class="md-tag">Zero Bloat:</span> Sub-millisecond startup, &lt;35MB memory, and zero telemetry.</div>
+            <div class="code-line"><span class="line-num">9</span></div>
+            <div class="code-line"><span class="line-num">10</span><span class="code-fence">```rust</span></div>
+            <div class="code-line"><span class="line-num">11</span><span class="code-kw">fn</span> <span class="code-fn">open_anything</span>(path: &amp;<span class="code-type">Path</span>) -&gt; <span class="code-type">Result</span>&lt;<span class="code-type">Document</span>, <span class="code-type">Error</span>&gt; {</div>
+            <div class="code-line"><span class="line-num">12</span>    <span class="code-macro">println!</span>(<span class="code-str">"Instant startup in &lt; 30ms with 100% offline privacy."</span>);</div>
+            <div class="code-line"><span class="line-num">13</span>}</div>
+            <div class="code-line"><span class="line-num">14</span><span class="code-fence">```</span></div>
+          </div>
+
+          <!-- Status Bar -->
+          <div class="mockup-status-bar">
+            <div class="status-left">
+              <span class="status-pill status-saved">● Saved</span>
+              <span>Ln 14, Col 2</span>
+              <span>2,410 words &bull; 14,820 chars</span>
+            </div>
+            <div class="status-right">
+              <span>CRLF</span>
+              <span>UTF-8</span>
+              <span class="status-lang">Markdown</span>
+              <span class="status-heart">💖 Feedback</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Global Stats & Architecture Showcase -->
+      <section class="global-stats container animate-on-scroll">
+        <div class="stats-header">
+          <h2 class="section-title">Engineered for Extreme Speed & Privacy</h2>
+          <p class="section-desc">Designed as a true native Windows utility that respects your machine and your data.</p>
+        </div>
+        <div class="stats-container">
+          <div class="stat-item">
+            <div class="stat-metric">
+              <span class="stat-prefix">&lt; </span><h3 class="stat-number" data-target="30">30</h3><span class="stat-unit">ms</span>
+            </div>
+            <p class="stat-label">Launch Time</p>
+            <p class="stat-sub">Launches instantly with zero Electron startup lag</p>
+          </div>
+          <div class="stat-item">
+            <div class="stat-metric">
+              <h3 class="stat-number" data-target="20">20</h3><span class="stat-unit">+</span>
+            </div>
+            <p class="stat-label">File Formats</p>
+            <p class="stat-sub">Office docs, data trees, code, and system configs</p>
+          </div>
+          <div class="stat-item">
+            <div class="stat-metric">
+              <span class="stat-prefix">&lt; </span><h3 class="stat-number" data-target="35">35</h3><span class="stat-unit">MB</span>
+            </div>
+            <p class="stat-label">RAM Usage</p>
+            <p class="stat-sub">Over 10x lighter than bloated web-wrapper editors</p>
+          </div>
+          <div class="stat-item">
+            <div class="stat-metric">
+              <h3 class="stat-number" data-target="100">100</h3><span class="stat-unit">%</span>
+            </div>
+            <p class="stat-label">Offline & Private</p>
+            <p class="stat-sub">Zero telemetry, zero cloud calls, zero data harvesting</p>
+          </div>
+        </div>
+        <div class="stats-footnote">
+          <span>🌍 Active in 50+ countries worldwide</span>
+          <span class="dot-separator">&bull;</span>
+          <span>🌐 7 built-in native languages</span>
+          <span class="dot-separator">&bull;</span>
+          <span>💖 100% free and open-source</span>
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section id="features" class="features container animate-on-scroll">
+        <div class="section-header">
+          <h2 class="section-title">Designed for Uncompromising Performance</h2>
+          <p class="section-desc">Every feature in Markpad Native is purpose-built to solve real daily workflow headaches.</p>
+        </div>
+        <div class="features-grid">
+          
+          <!-- Feature 1 -->
+          <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Sub-Millisecond Native Architecture</h3>
+            <p>Built with native Rust and Tauri v2. Opens in the blink of an eye, uses under 35 MB of RAM, and smoothly opens multi-megabyte files without freezing your desktop.</p>
+          </div>
+
+          <!-- Feature 2 -->
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>All-in-One Office & Document Suite</h3>
+            <p>Native multi-sheet Excel spreadsheet editor, rich Word (.docx) document editor, and 100% offline PDF viewer built right in—no Microsoft Office or Acrobat required.</p>
+          </div>
+
+          <!-- Feature 3 -->
+          <div class="feature-card">
+            <div class="feature-icon">🌲</div>
+            <h3>Interactive Code, JSON & Data Tools</h3>
+            <p>Explore JSON and YAML as collapsible visual trees, browse massive CSV/TSV tables with instant pagination, inspect environment variables with secret masking, and filter log files on the fly.</p>
+          </div>
+
+          <!-- Feature 4 -->
+          <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>True Zero-Cloud Local Privacy</h3>
+            <p>Your proprietary code, business spreadsheets, and private notes never leave your machine. Zero telemetry, zero analytics, zero network calls, and zero account sign-ups.</p>
+          </div>
+
+          <!-- Feature 5 -->
+          <div class="feature-card">
+            <div class="feature-icon">🖨️</div>
+            <h3>Studio-Grade PDF & HTML Export</h3>
+            <p>Export markdown documents to crisp, publication-ready PDF files with custom margins via the native print engine, or copy standalone formatted HTML with embedded styles in one click.</p>
+          </div>
+
+          <!-- Feature 6 -->
+          <div class="feature-card">
+            <div class="feature-icon">🪟</div>
+            <h3>Modern Tabbed Productivity</h3>
+            <p>Detachable multi-window architecture, drag-and-drop tab reordering, pin tabs, CodeMirror syntax highlighting, in-document Find/Replace in 7 languages, and distraction-free dark & light modes.</p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- Why Markpad Native Section -->
+      <section id="why-markpad" class="comparison container animate-on-scroll">
+        <div class="section-header">
+          <h2 class="section-title">Why Markpad Native?</h2>
+          <p class="section-desc">The sweet spot between barebones text utilities and bloated developer environments.</p>
+        </div>
+        <div class="comparison-table-wrapper">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>Windows Notepad</th>
+                <th>VS Code / Electron</th>
+                <th class="highlight-col">Markpad Native 2.0</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Cold Launch Speed</strong></td>
+                <td>~100 ms</td>
+                <td>1.5s – 4.0s (Slow)</td>
+                <td class="highlight-col"><strong>&lt; 30 ms (Instant)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Memory Footprint</strong></td>
+                <td>~50 MB</td>
+                <td>350 MB – 800 MB+</td>
+                <td class="highlight-col"><strong>&lt; 35 MB (Featherweight)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Office Docs (Excel / Word)</strong></td>
+                <td>❌ Unsupported</td>
+                <td>⚠️ Requires heavy web extensions</td>
+                <td class="highlight-col"><strong>✅ Built-in Native Viewers</strong></td>
+              </tr>
+              <tr>
+                <td><strong>PDF Viewer</strong></td>
+                <td>❌ Unsupported</td>
+                <td>⚠️ Requires 3rd-party extensions</td>
+                <td class="highlight-col"><strong>✅ Built-in 100% Offline Reader</strong></td>
+              </tr>
+              <tr>
+                <td><strong>JSON & YAML Tree Explorer</strong></td>
+                <td>❌ Plain raw text</td>
+                <td>⚠️ Plugins needed</td>
+                <td class="highlight-col"><strong>✅ Built-in Visual Tree</strong></td>
+              </tr>
+              <tr>
+                <td><strong>CSV / TSV Data Table</strong></td>
+                <td>❌ Plain raw text</td>
+                <td>⚠️ Plugins needed</td>
+                <td class="highlight-col"><strong>✅ Built-in Interactive Grid</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Privacy & Telemetry</strong></td>
+                <td>⚠️ Windows diagnostics</td>
+                <td>⚠️ Background telemetry</td>
+                <td class="highlight-col"><strong>✅ 100% Local & Zero Telemetry</strong></td>
+              </tr>
+              <tr>
+                <td><strong>Multi-Language (7 Locales)</strong></td>
+                <td>⚠️ OS default only</td>
+                <td>⚠️ Manual language packs</td>
+                <td class="highlight-col"><strong>✅ 7 Instant Built-in Languages</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Supported File Types Section -->
+      <section id="formats" class="file-types container animate-on-scroll">
+        <div class="section-header">
+          <h2 class="section-title">Universal Format Compatibility</h2>
+          <p class="section-desc">From complex office spreadsheets to developer config trees, open whatever you throw at it.</p>
+        </div>
+
+        <div class="formats-category-grid">
+          <!-- Category 1: Documents & Office -->
+          <div class="format-category-card">
+            <div class="category-header">
+              <span class="category-icon">📁</span>
+              <h3>Documents & Office</h3>
+            </div>
+            <div class="badges-wrap">
+              <div class="file-badge"><span>📄</span> .md <small>Markdown</small></div>
+              <div class="file-badge"><span>📕</span> .pdf <small>PDF Document</small></div>
+              <div class="file-badge"><span>📘</span> .docx / .doc <small>Word</small></div>
+              <div class="file-badge"><span>📗</span> .xlsx / .xls <small>Excel</small></div>
+              <div class="file-badge"><span>📝</span> .rtf <small>Rich Text</small></div>
+              <div class="file-badge"><span>📃</span> .txt <small>Plain Text</small></div>
+            </div>
+          </div>
+
+          <!-- Category 2: Data & Configuration -->
+          <div class="format-category-card">
+            <div class="category-header">
+              <span class="category-icon">⚙️</span>
+              <h3>Data & Configuration</h3>
+            </div>
+            <div class="badges-wrap">
+              <div class="file-badge"><span>📦</span> .json <small>JSON Tree</small></div>
+              <div class="file-badge"><span>📊</span> .csv / .tsv <small>Data Table</small></div>
+              <div class="file-badge"><span>⚙️</span> .yaml / .yml <small>YAML</small></div>
+              <div class="file-badge"><span>🔧</span> .toml <small>TOML</small></div>
+              <div class="file-badge"><span>📝</span> .xml / .svg <small>XML</small></div>
+              <div class="file-badge"><span>🔐</span> .env <small>Env Inspector</small></div>
+              <div class="file-badge"><span>🎛️</span> .ini / .conf <small>Config</small></div>
+            </div>
+          </div>
+
+          <!-- Category 3: Code & Development -->
+          <div class="format-category-card">
+            <div class="category-header">
+              <span class="category-icon">💻</span>
+              <h3>Code & Web</h3>
+            </div>
+            <div class="badges-wrap">
+              <div class="file-badge"><span>🦀</span> .rs <small>Rust</small></div>
+              <div class="file-badge"><span>🐍</span> .py <small>Python</small></div>
+              <div class="file-badge"><span>📘</span> .ts / .tsx <small>TypeScript</small></div>
+              <div class="file-badge"><span>📜</span> .js / .jsx <small>JavaScript</small></div>
+              <div class="file-badge"><span>🌐</span> .html <small>HTML5</small></div>
+              <div class="file-badge"><span>🎨</span> .css <small>CSS3</small></div>
+              <div class="file-badge"><span>🗄️</span> .sql <small>SQL</small></div>
+              <div class="file-badge"><span>⚡</span> .c / .cpp <small>C / C++</small></div>
+            </div>
+          </div>
+
+          <!-- Category 4: System & Diagnostics -->
+          <div class="format-category-card">
+            <div class="category-header">
+              <span class="category-icon">📋</span>
+              <h3>Diagnostics & Logs</h3>
+            </div>
+            <div class="badges-wrap">
+              <div class="file-badge"><span>📋</span> .log <small>System & Server Logs with Level Filtering</small></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Community Support & Feedback Section -->
+      <section class="support-feedback container animate-on-scroll" id="support">
+        <div class="support-card">
+          <div class="support-badge">💖 100% Free & Independent Software</div>
+          <h2 class="support-title">Crafted by Vodiy. Free Forever.</h2>
+          <p class="support-text">
+            Markpad is an independent open-source utility created to give everyone a fast, private, and capable text tool. No paywalls, no tracking, and no subscriptions. If Markpad empowers your daily workflow, consider sharing your thoughts, rating us, or supporting ongoing development!
+          </p>
+          <div class="support-actions">
+            <!-- Google Form Feedback Button -->
+            <a href="https://docs.google.com/forms/d/e/1FAIpQLSekDrj5FJL30WB11xkq4FUtnseJFCsp5yQda54XHllHuN9xnQ/viewform" target="_blank" rel="noopener noreferrer" class="btn btn-feedback">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              <span>Give Feedback & Rate Us</span>
+            </a>
+
+            <!-- Buy Me a Coffee / Donate Button -->
+            <a href="https://buymeacoffee.com/shukurillokh" target="_blank" rel="noopener noreferrer" class="btn btn-donate">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M18 8h1a4 4 0 0 1 0 8h-1"></path>
+                <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path>
+                <line x1="6" y1="1" x2="6" y2="4"></line>
+                <line x1="10" y1="1" x2="10" y2="4"></line>
+                <line x1="14" y1="1" x2="14" y2="4"></line>
+              </svg>
+              <span>Buy Me a Coffee</span>
+            </a>
+
+            <!-- GitHub Star Button -->
+            <a href="https://github.com/shukurillo0526/Markpad" target="_blank" rel="noopener noreferrer" class="btn btn-github-star">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+              <span>Star on GitHub</span>
+            </a>
+          </div>
+
+          <!-- Crypto Donations Grid -->
+          <div class="crypto-donations">
+            <div class="crypto-header-label">
+              <span>💎 Or Support with Crypto (1-Click Instant Copy)</span>
+            </div>
+            <div class="crypto-grid">
+              <!-- TON -->
+              <div class="crypto-box">
+                <div class="crypto-coin-meta">
+                  <span class="crypto-tag ton-tag">TON</span>
+                  <span class="crypto-chain-name">The Open Network</span>
+                </div>
+                <div class="crypto-address-row">
+                  <span class="crypto-address" title="UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB">UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB</span>
+                  <button class="btn-crypto-copy" data-address="UQC1AQlgoKOgnCY1tJs2XRfzokNRs5eH1B9rJb51YPgckOpB" title="Copy TON Address">
+                    <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span class="copy-label">Copy</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Solana -->
+              <div class="crypto-box">
+                <div class="crypto-coin-meta">
+                  <span class="crypto-tag sol-tag">SOL</span>
+                  <span class="crypto-chain-name">Solana Network</span>
+                </div>
+                <div class="crypto-address-row">
+                  <span class="crypto-address" title="7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm">7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm</span>
+                  <button class="btn-crypto-copy" data-address="7YxRasLXVzMhsfRQh9Hqp11QJPnD36kMSqd52gmujNNm" title="Copy Solana Address">
+                    <svg class="copy-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span class="copy-label">Copy</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Bottom CTA Section -->
+      <section class="bottom-cta container animate-on-scroll">
+        <h2 class="section-title">Ready to experience the fastest text editor?</h2>
+        <p class="section-desc">Join thousands of users enjoying clean, instantaneous, private text and document editing.</p>
+        <div class="cta-group">
+          <!-- Microsoft Store Button -->
+          <a href="https://apps.microsoft.com/detail/9NRCZSC4800K" target="_blank" rel="noopener noreferrer" class="btn btn-primary store-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.4 24H0V11.4h11.4V24zM24 24H12.6V11.4H24V24zM11.4 10.6H0V0h11.4v10.6zM24 10.6H12.6V0H24v10.6z"/>
+            </svg>
+            <div class="btn-text">
+              <span>Get it from</span>
+              <strong>Microsoft Store</strong>
+            </div>
+          </a>
+
+          <!-- Direct EXE Button -->
+          <a href="./downloads/Markpad_Native_2.0.0_x64-setup.exe" class="btn btn-secondary" download>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <div class="btn-text">
+              <span>Download directly</span>
+              <strong>Windows (.exe)</strong>
+            </div>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="container footer-content">
+        <p>&copy; 2026 Vodiy. Released under the <a href="https://github.com/shukurillo0526/Markpad/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" class="license-text">MIT License</a>.</p>
+        <div class="footer-links">
+          <a href="https://docs.google.com/forms/d/e/1FAIpQLSekDrj5FJL30WB11xkq4FUtnseJFCsp5yQda54XHllHuN9xnQ/viewform" target="_blank" rel="noopener noreferrer">Give Feedback</a>
+          <a href="https://buymeacoffee.com/shukurillokh" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a>
+          <a href="https://github.com/shukurillo0526/Markpad" target="_blank" rel="noopener noreferrer">GitHub</a>
+          <a href="https://github.com/shukurillo0526/Markpad/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+        </div>
+      </div>
+    </footer>
+
+  </body>
+</html>
