@@ -29,6 +29,8 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "shortDescription": "The VLC of Text Files — a blazing-fast native text and office utility",
+    "publisher": "CN=988CB9C4-F545-4937-9E4F-84432479A4C7",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
