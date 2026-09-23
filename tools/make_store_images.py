@@ -52,11 +52,36 @@ slides = [
         'badge': 'WORD (.DOCX) & 7 NATIVE LANGUAGES'
     },
     {
+        'num': '07',
         'id': 'codemirror_text_editor',
         'title': 'Distraction-free code editing. <em>Extreme responsiveness</em>.',
         'subtitle': 'CodeMirror 6 engine • Multi-language syntax • Built-in line folding',
         'file': 'Screenshot 2026-09-23 220813.png',
         'badge': 'NATIVE TEXT & CODE EDITOR'
+    },
+    {
+        'num': '08',
+        'id': 'live_html_web_preview',
+        'title': 'Instant web preview. <em>Responsive device frames</em>.',
+        'subtitle': 'Render HTML and SVG safely • Toggle Desktop, Tablet, and Mobile views',
+        'file': 'Screenshot 2026-09-23 222856.png',
+        'badge': 'RESPONSIVE WEB PREVIEW'
+    },
+    {
+        'num': '09',
+        'id': 'env_keyvalue_inspector',
+        'title': 'Inspect environments. <em>Mask sensitive secrets</em>.',
+        'subtitle': 'Structured view of .env, .ini, and .conf • One-click secret masking',
+        'file': 'Screenshot 2026-09-23 222916.png',
+        'badge': 'KEY-VALUE & SECRET INSPECTOR'
+    },
+    {
+        'num': '10',
+        'id': 'export_and_print_engine',
+        'title': 'Export anywhere. <em>PDF, standalone HTML & rich text</em>.',
+        'subtitle': 'High-fidelity native print engine • Formatted clipboard copy in one click',
+        'file': 'Screenshot 2026-09-23 222927.png',
+        'badge': 'EXPORT & PRINT ENGINE'
     }
 ]
 
