@@ -9,11 +9,12 @@
 
 ## ✨ Features
 
-- **Blazing-Fast Startup:** Built completely from the ground up using a highly optimized native Rust backend (Tauri v2). Consumes a fraction of the memory of Electron-based apps.
+- **Blazing-Fast Startup:** Built completely from the ground up using a highly optimized native Rust backend (Tauri v2). Consumes a fraction of the memory of Electron-based apps (<100ms startup).
+- **Universal 26+ File Formats:** Seamlessly opens Markdown, Excel spreadsheets (.xlsx, .xls), Word documents (.docx), PDFs, CSV/TSV data tables, JSON/YAML trees, system logs, environment configs (.env), and source code.
 - **Smart Data Formatting:** Automatically parses and beautifully formats CSV, JSON, Markdown, and system logs into dedicated, interactive viewing modes.
-- **100% Offline & Secure:** Your data never leaves your device. Markpad Native is designed to process enormous files entirely locally with complete privacy.
-- **Immersive Aesthetics:** A beautiful, distraction-free modern interface with rich dark mode support and native Windows 11 window controls.
-- **Multilingual Support:** Fully localized for English, Russian, and Uzbek.
+- **100% Offline & Secure:** Your data never leaves your device. Markpad Native is designed to process files entirely locally with zero telemetry, zero analytics, and complete privacy.
+- **Immersive Aesthetics:** A beautiful, distraction-free modern interface with rich dark mode support and native Windows 11 Fluent window controls.
+- **Multilingual Support:** Fully localized for 7 languages: English, Español, Deutsch, 中文 (简体), Русский, O'zbek, and 한국어.
 
 ## 🚀 Downloads
 
